@@ -1,0 +1,73 @@
+name: vyompress-boost-test
+
+services:
+  database:
+    image: mariadb:11.8
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress-test-password
+      MARIADB_ROOT_PASSWORD: wordpress-test-root-password
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  wordpress:
+    image: wordpress:7.1.2-php8.3-apache
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: database:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress-test-password
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: "1"
+    ports:
+      - "127.0.0.1:${VYOMPRESS_BOOST_TEST_PORT:-18080}:80"
+    volumes:
+      - wordpress-data:/var/www/html
+      - ../../:/var/www/html/wp-content/plugins/vyompress-boost:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1/wp-admin/install.php >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  smoke:
+    image: wordpress:cli-php8.3
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: database:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress-test-password
+      WORDPRESS_DB_NAME: wordpress
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until [ -f /var/www/html/wp-config.php ]; do sleep 1; done
+        wp core install \
+          --path=/var/www/html \
+          --url=http://localhost:18080 \
+          --title="VyomPress Boost Test" \
+          --admin_user=vyompress-test \
+          --admin_password=vyompress-test-password \
+          --admin_email=test@vyompress.local \
+          --skip-email
+        wp plugin activate vyompress-boost --path=/var/www/html
+        wp eval-file /tests/smoke.php --path=/var/www/html
+    volumes:
+      - wordpress-data:/var/www/html
+      - ../../:/var/www/html/wp-content/plugins/vyompress-boost:ro
+      - ./smoke.php:/tests/smoke.php:ro
+
+volumes:
+  wordpress-data:

@@ -1,0 +1,24 @@
+.vyompress-boost {
+	max-width: 920px;
+}
+
+.vyompress-boost__status {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 12px;
+	margin: 24px 0;
+}
+
+.vyompress-boost__status > div {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 16px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.vyompress-boost__status span {
+	color: #50575e;
+}

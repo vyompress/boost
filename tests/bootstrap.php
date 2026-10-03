@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 defined('WEEK_IN_SECONDS') || define('WEEK_IN_SECONDS', 604800);
 defined('YEAR_IN_SECONDS') || define('YEAR_IN_SECONDS', 31536000);
+defined('MONTH_IN_SECONDS') || define('MONTH_IN_SECONDS', 2592000);
 
 $GLOBALS['vyompress_boost_test_options'] = array();
 
@@ -92,5 +93,6 @@ if (! function_exists('wp_delete_file')) {
 require_once dirname(__DIR__) . '/src/Cache/CacheKey.php';
 require_once dirname(__DIR__) . '/src/Cache/CachePolicy.php';
 require_once dirname(__DIR__) . '/src/Cache/CacheStore.php';
+require_once dirname(__DIR__) . '/src/Cloudflare/CloudflareClient.php';
 require_once dirname(__DIR__) . '/src/Media/S3Signer.php';
 require_once dirname(__DIR__) . '/src/Settings.php';

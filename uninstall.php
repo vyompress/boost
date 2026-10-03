@@ -17,9 +17,14 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 function vyompress_boost_uninstall_site(): void {
 	delete_option( 'vyompress_boost_settings' );
 	delete_option( 'vyompress_boost_cloudflare_status' );
+	delete_option( 'vyompress_boost_activity_log' );
+	delete_option( 'vyompress_boost_preload_status' );
+	delete_option( 'vyompress_boost_media_migration_status' );
 	delete_post_meta_by_key( '_vyompress_boost_offload' );
 	delete_post_meta_by_key( '_vyompress_boost_offload_error' );
 	wp_clear_scheduled_hook( 'vyompress_boost_cloudflare_purge' );
+	wp_clear_scheduled_hook( 'vyompress_boost_preload_batch' );
+	wp_clear_scheduled_hook( 'vyompress_boost_media_migration_batch' );
 }
 
 if ( is_multisite() ) {

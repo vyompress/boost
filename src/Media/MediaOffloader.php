@@ -10,12 +10,13 @@ declare(strict_types=1);
 namespace VyomPress\Boost\Media;
 
 use VyomPress\Boost\Settings;
+use WP_Error;
 
 /**
  * Copies attachment originals and generated sizes to S3-compatible storage.
  */
 final class MediaOffloader {
-	private const META_KEY       = '_vyompress_boost_offload';
+	public const META_KEY        = '_vyompress_boost_offload';
 	private const ERROR_META_KEY = '_vyompress_boost_offload_error';
 
 	/**
@@ -42,6 +43,41 @@ final class MediaOffloader {
 	 */
 	public function isReady(): bool {
 		return (bool) $this->settings->get( 's3_enabled' ) && $this->client->isConfigured();
+	}
+
+	/**
+	 * Offload an existing Media Library item and report the result.
+	 *
+	 * @param int $attachment_id Attachment post ID.
+	 * @return true|WP_Error
+	 */
+	public function offloadExisting( int $attachment_id ): bool|WP_Error {
+		if ( ! $this->isReady() ) {
+			return new WP_Error( 'vyompress_offload_not_ready', __( 'Enable and configure media offloading first.', 'vyompress-boost' ) );
+		}
+
+		$metadata = wp_get_attachment_metadata( $attachment_id );
+		$metadata = is_array( $metadata ) ? $metadata : array();
+		$this->offloadAttachment( $metadata, $attachment_id, 'update' );
+		$error  = get_post_meta( $attachment_id, self::ERROR_META_KEY, true );
+		$record = $this->record( $attachment_id );
+		if ( '' === (string) $error && empty( $record['objects'] ) ) {
+			return new WP_Error( 'vyompress_offload_no_files', __( 'No local attachment files were available to offload.', 'vyompress-boost' ) );
+		}
+
+		return '' === (string) $error ? true : new WP_Error( 'vyompress_offload_failed', (string) $error );
+	}
+
+	/**
+	 * Return the validated offload record for one attachment.
+	 *
+	 * @param int $attachment_id Attachment post ID.
+	 * @return array{base_key?:string,objects?:list<string>,offloaded_at?:int}
+	 */
+	public function record( int $attachment_id ): array {
+		$record = get_post_meta( $attachment_id, self::META_KEY, true );
+
+		return is_array( $record ) ? $record : array();
 	}
 
 	/**

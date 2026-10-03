@@ -98,7 +98,8 @@ services:
         fi
         wp plugin install plugin-check --activate --path=/var/www/html
         rm -rf /tmp/vyompress-boost /var/www/html/wp-content/plugins/vyompress-boost /var/www/html/wp-content/plugins/vyompress-boost-release
-        unzip -q /release/vyompress-boost-*.zip -d /tmp
+        archive="$$(ls -1 /release/vyompress-boost-*.zip | sort -V | tail -n 1)"
+        unzip -q "$$archive" -d /tmp
         cp -R /tmp/vyompress-boost /var/www/html/wp-content/plugins/vyompress-boost
         wp plugin activate vyompress-boost --path=/var/www/html
         wp plugin check vyompress-boost \

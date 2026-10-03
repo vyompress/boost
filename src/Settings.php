@@ -28,6 +28,10 @@ final class Settings {
 			'browser_ttl'              => 3600,
 			'separate_mobile_cache'    => false,
 			'cache_query_strings'      => false,
+			'preload_enabled'          => false,
+			'preload_on_purge'         => true,
+			'preload_concurrency'      => 1,
+			'preload_url_limit'        => 200,
 			'ignored_query_parameters' => "utm_source\nutm_medium\nutm_campaign\nutm_term\nutm_content\ngclid\nfbclid",
 			'excluded_paths'           => "/cart/\n/checkout/\n/my-account/",
 			'disable_emojis'           => true,
@@ -37,6 +41,8 @@ final class Settings {
 			'cloudflare_zone_id'       => '',
 			'cloudflare_api_token'     => '',
 			'cloudflare_auto_purge'    => true,
+			'cloudflare_edge_cache'    => false,
+			'cloudflare_edge_ttl'      => 7200,
 			's3_enabled'               => false,
 			's3_endpoint'              => '',
 			's3_region'                => 'us-east-1',
@@ -113,11 +119,14 @@ final class Settings {
 			'browser_cache',
 			'separate_mobile_cache',
 			'cache_query_strings',
+			'preload_enabled',
+			'preload_on_purge',
 			'disable_emojis',
 			'disable_embeds',
 			'reduce_heartbeat',
 			'cloudflare_enabled',
 			'cloudflare_auto_purge',
+			'cloudflare_edge_cache',
 			's3_enabled',
 			's3_path_style',
 			's3_keep_local',
@@ -135,6 +144,18 @@ final class Settings {
 
 		if ( isset( $input['browser_ttl'] ) ) {
 			$current['browser_ttl'] = self::boundedInteger( $input['browser_ttl'], 60, YEAR_IN_SECONDS, 3600 );
+		}
+
+		if ( isset( $input['preload_concurrency'] ) ) {
+			$current['preload_concurrency'] = self::boundedInteger( $input['preload_concurrency'], 1, 4, 1 );
+		}
+
+		if ( isset( $input['preload_url_limit'] ) ) {
+			$current['preload_url_limit'] = self::boundedInteger( $input['preload_url_limit'], 10, 500, 200 );
+		}
+
+		if ( isset( $input['cloudflare_edge_ttl'] ) ) {
+			$current['cloudflare_edge_ttl'] = self::boundedInteger( $input['cloudflare_edge_ttl'], 7200, MONTH_IN_SECONDS, 7200 );
 		}
 
 		if ( array_key_exists( 'ignored_query_parameters', $input ) ) {

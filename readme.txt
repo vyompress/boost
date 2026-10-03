@@ -3,7 +3,7 @@ Contributors: vyompress
 Tags: cache, performance, cloudflare, s3, media
 Requires at least: 6.4
 Tested up to: 7.1
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -22,12 +22,14 @@ VyomPress Boost combines practical WordPress performance tools in one focused pl
 * Tracking-parameter normalization and opt-in query-string caching.
 * Editable path exclusions with safe store defaults.
 * Automatic bypasses for logged-in users, previews, searches, feeds, error pages, REST requests, password-protected content, commenters, and common ecommerce sessions.
+* Throttled sitemap-based cache preloading with safe URL and concurrency limits.
 
 = Cloudflare =
 
 * Scoped API-token authentication.
 * Debounced automatic edge-cache purges after site changes.
 * One-click connection test and manual purge.
+* Optional plugin-owned Cloudflare Cache Rule for full-page edge caching with WordPress, login, REST, cookie, store, path, query, status-code, and device safeguards.
 * API tokens can be supplied through `wp-config.php` instead of the database.
 
 = S3-compatible media storage =
@@ -38,6 +40,7 @@ VyomPress Boost combines practical WordPress performance tools in one focused pl
 * Optional custom CDN/public URL and object prefix.
 * Safe default keeps local copies; local removal is explicitly opt-in.
 * Deletes registered remote objects when their attachment is permanently deleted.
+* Resumable background jobs to offload existing media, verify remote objects, and restore missing local copies.
 * Access credentials can be supplied through `wp-config.php`.
 
 = Simple operations =
@@ -45,6 +48,7 @@ VyomPress Boost combines practical WordPress performance tools in one focused pl
 * Guided, responsive settings screen with plain-language status cards.
 * Connection tests that explain failures without exposing credentials.
 * Site Health checks for cache storage and integration completeness.
+* Local activity history for purges, preloads, Cloudflare operations, and media jobs.
 * Optional emoji, embed, and Heartbeat optimizations.
 * No telemetry, advertisements, or VyomPress account.
 
@@ -76,9 +80,9 @@ Yes. Define `VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN`, `VYOMPRESS_BOOST_S3_ACCESS_K
 
 Not by default. Keeping local copies supports image editing, thumbnail regeneration, backups, and recovery from provider outages. Local removal is an advanced opt-in choice.
 
-= Does version 0.2 offload existing Media Library files? =
+= Can existing Media Library files be offloaded? =
 
-No. It offloads new uploads and newly regenerated attachment metadata. A resumable bulk migration tool is planned separately so large libraries are not processed in one web request.
+Yes. Use the resumable background media job on the Media storage tab. The same controls can verify remote objects or restore missing local copies.
 
 = How can a private MinIO endpoint be used? =
 
@@ -94,7 +98,7 @@ VyomPress Boost does not contact an external service until an administrator enab
 
 = Cloudflare =
 
-When enabled, the plugin sends the configured zone ID and an authenticated cache-purge request to Cloudflare after relevant WordPress changes or an explicit administrator action. Cloudflare processes the request under its terms and privacy policy.
+When enabled, the plugin sends the configured zone ID and authenticated cache-purge requests to Cloudflare after relevant WordPress changes or an explicit administrator action. If an administrator uses edge-rule management, it also reads and changes the zone cache ruleset to create, update, or remove only the rule identified as belonging to VyomPress Boost. Cache-rule management requires Zone Cache Rules Edit permission in addition to Cache Purge permission. Cloudflare processes these requests under its terms and privacy policy.
 
 * Service: https://www.cloudflare.com/
 * Terms: https://www.cloudflare.com/website-terms/
@@ -116,6 +120,13 @@ For another compatible service or a self-hosted MinIO deployment, review the end
 
 == Changelog ==
 
+= 0.3.0 =
+
+* Added a throttled sitemap cache preloader with automatic post-purge warming.
+* Added safe Cloudflare full-page edge Cache Rule installation, updating, and removal without replacing unrelated rules.
+* Added resumable existing-media offload, remote verification, and local restore jobs.
+* Added a local operational activity history and background-job status summaries.
+
 = 0.2.0 =
 
 * Added Cloudflare automatic and manual cache purging with scoped API tokens.
@@ -129,6 +140,10 @@ For another compatible service or a self-hosted MinIO deployment, review the end
 * Initial public release with anonymous page caching and focused WordPress optimizations.
 
 == Upgrade Notice ==
+
+= 0.3.0 =
+
+Adds optional cache preloading, Cloudflare edge-rule management, and resumable existing-media operations. Existing integrations remain unchanged until enabled or started by an administrator.
 
 = 0.2.0 =
 

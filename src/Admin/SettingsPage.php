@@ -9,9 +9,12 @@ declare(strict_types=1);
 
 namespace VyomPress\Boost\Admin;
 
+use VyomPress\Boost\Cache\CachePreloader;
 use VyomPress\Boost\Cache\CacheStore;
 use VyomPress\Boost\Cloudflare\CloudflareIntegration;
+use VyomPress\Boost\Media\MediaMigrator;
 use VyomPress\Boost\Media\S3Client;
+use VyomPress\Boost\Operations\ActivityLog;
 use VyomPress\Boost\Settings;
 
 /**
@@ -28,12 +31,18 @@ final class SettingsPage {
 	 * @param CacheStore            $store      Local page-cache storage.
 	 * @param CloudflareIntegration $cloudflare Cloudflare integration.
 	 * @param S3Client              $s3         S3-compatible storage client.
+	 * @param CachePreloader        $preloader  Cache preloader.
+	 * @param MediaMigrator         $migrator   Existing-media migration worker.
+	 * @param ActivityLog           $log        Local activity log.
 	 */
 	public function __construct(
 		private Settings $settings,
 		private CacheStore $store,
 		private CloudflareIntegration $cloudflare,
-		private S3Client $s3
+		private S3Client $s3,
+		private CachePreloader $preloader,
+		private MediaMigrator $migrator,
+		private ActivityLog $log
 	) {
 	}
 
@@ -48,6 +57,9 @@ final class SettingsPage {
 		add_action( 'admin_post_vyompress_boost_purge', array( $this, 'handlePurge' ) );
 		add_action( 'admin_post_vyompress_boost_test_cloudflare', array( $this, 'handleCloudflareTest' ) );
 		add_action( 'admin_post_vyompress_boost_test_s3', array( $this, 'handleS3Test' ) );
+		add_action( 'admin_post_vyompress_boost_cloudflare_rule', array( $this, 'handleCloudflareRule' ) );
+		add_action( 'admin_post_vyompress_boost_preload', array( $this, 'handlePreload' ) );
+		add_action( 'admin_post_vyompress_boost_media_job', array( $this, 'handleMediaJob' ) );
 		add_action( 'admin_notices', array( $this, 'renderNotice' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( VYOMPRESS_BOOST_FILE ), array( $this, 'actionLinks' ) );
 		add_filter( 'site_status_tests', array( $this, 'siteHealthTests' ) );
@@ -89,7 +101,7 @@ final class SettingsPage {
 			return;
 		}
 
-		$content = '<p>' . esc_html__( 'VyomPress Boost does not collect telemetry. When Cloudflare integration is enabled, an authenticated cache-purge request is sent to Cloudflare. When media offloading is enabled, WordPress media files are copied to the S3-compatible endpoint selected by the site administrator. The applicable provider receives the request metadata and uploaded media according to that provider’s terms and privacy policy.', 'vyompress-boost' ) . '</p>';
+		$content = '<p>' . esc_html__( 'VyomPress Boost does not collect telemetry. When Cloudflare integration is enabled, authenticated cache-purge and optional cache-rule management requests are sent to Cloudflare. When media offloading is enabled, WordPress media files are copied to the S3-compatible endpoint selected by the site administrator. The applicable provider receives the request metadata and uploaded media according to that provider’s terms and privacy policy.', 'vyompress-boost' ) . '</p>';
 		wp_add_privacy_policy_content( __( 'VyomPress Boost', 'vyompress-boost' ), wp_kses_post( wpautop( $content, false ) ) );
 	}
 
@@ -146,10 +158,15 @@ final class SettingsPage {
 					<?php $this->renderTab( $tab ); ?>
 					<?php submit_button( __( 'Save changes', 'vyompress-boost' ) ); ?>
 				</form>
-				<?php if ( 'cloudflare' === $tab ) : ?>
+				<?php if ( 'cache' === $tab ) : ?>
+					<?php $this->renderPreloadActions(); ?>
+				<?php elseif ( 'cloudflare' === $tab ) : ?>
 					<?php $this->actionPanel( 'vyompress_boost_test_cloudflare', 'vyompress_boost_test_cloudflare', __( 'Test and purge Cloudflare', 'vyompress-boost' ), __( 'This validates the saved credentials by clearing the connected zone cache.', 'vyompress-boost' ) ); ?>
+					<?php $this->actionPanel( 'vyompress_boost_cloudflare_rule', 'vyompress_boost_cloudflare_rule', __( 'Install or update edge rule', 'vyompress-boost' ), __( 'Creates or updates only the Cloudflare Cache Rule owned by VyomPress Boost. Save settings first.', 'vyompress-boost' ), array( 'operation' => 'sync' ) ); ?>
+					<?php $this->actionPanel( 'vyompress_boost_cloudflare_rule', 'vyompress_boost_cloudflare_rule', __( 'Remove edge rule', 'vyompress-boost' ), __( 'Removes only the VyomPress Boost rule and leaves other Cloudflare rules unchanged.', 'vyompress-boost' ), array( 'operation' => 'remove' ) ); ?>
 				<?php elseif ( 'media' === $tab ) : ?>
 					<?php $this->actionPanel( 'vyompress_boost_test_s3', 'vyompress_boost_test_s3', __( 'Test storage connection', 'vyompress-boost' ), __( 'Creates and immediately removes a tiny test object. Save changes first.', 'vyompress-boost' ) ); ?>
+					<?php $this->renderMediaJobActions(); ?>
 				<?php endif; ?>
 			<?php endif; ?>
 		</div>
@@ -162,6 +179,8 @@ final class SettingsPage {
 	private function renderOverview(): void {
 		$cloudflare_ready = $this->settings->get( 'cloudflare_enabled' ) && $this->cloudflare->isConfigured();
 		$s3_ready         = $this->settings->get( 's3_enabled' ) && $this->s3->isConfigured();
+		$preload_status   = $this->preloader->status();
+		$migration_status = $this->migrator->status();
 		?>
 		<section class="vyompress-boost__status" aria-label="<?php echo esc_attr__( 'Boost status', 'vyompress-boost' ); ?>">
 			<?php $this->statusCard( __( 'Page cache', 'vyompress-boost' ), $this->settings->get( 'page_cache' ) ? __( 'Active', 'vyompress-boost' ) : __( 'Off', 'vyompress-boost' ), (bool) $this->settings->get( 'page_cache' ) ); ?>
@@ -188,6 +207,28 @@ final class SettingsPage {
 					<?php wp_nonce_field( 'vyompress_boost_purge' ); ?>
 					<?php submit_button( __( 'Purge connected caches', 'vyompress-boost' ), 'secondary', 'submit', false ); ?>
 				</form>
+			</section>
+		</div>
+
+		<div class="vyompress-boost__grid">
+			<section class="vyompress-boost__panel">
+				<h2><?php echo esc_html__( 'Background jobs', 'vyompress-boost' ); ?></h2>
+				<p><?php echo esc_html( sprintf( /* translators: 1: preload state, 2: processed URL count. */ __( 'Cache preload: %1$s (%2$d processed)', 'vyompress-boost' ), $preload_status['state'], $preload_status['processed'] ) ); ?></p>
+				<p><?php echo esc_html( sprintf( /* translators: 1: media job state, 2: processed attachment count. */ __( 'Media job: %1$s (%2$d processed)', 'vyompress-boost' ), $migration_status['state'], $migration_status['processed'] ) ); ?></p>
+			</section>
+
+			<section class="vyompress-boost__panel">
+				<h2><?php echo esc_html__( 'Recent activity', 'vyompress-boost' ); ?></h2>
+				<?php $events = $this->log->all( 5 ); ?>
+				<?php if ( array() === $events ) : ?>
+					<p><?php echo esc_html__( 'No background operations recorded yet.', 'vyompress-boost' ); ?></p>
+				<?php else : ?>
+					<ul class="vyompress-boost__activity">
+						<?php foreach ( $events as $event ) : ?>
+							<li><time datetime="<?php echo esc_attr( gmdate( 'c', $event['time'] ) ); ?>"><?php echo esc_html( human_time_diff( $event['time'], time() ) . ' ' . __( 'ago', 'vyompress-boost' ) ); ?></time><span><?php echo esc_html( $event['message'] ); ?></span></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
 			</section>
 		</div>
 		<?php
@@ -228,6 +269,13 @@ final class SettingsPage {
 		<?php $this->textarea( 'ignored_query_parameters', __( 'Ignored query parameters', 'vyompress-boost' ), __( 'One parameter name per line. These are removed from cache keys.', 'vyompress-boost' ) ); ?>
 		<?php $this->textarea( 'excluded_paths', __( 'Never cache these paths', 'vyompress-boost' ), __( 'One root-relative path per line. Matching subpaths are excluded too.', 'vyompress-boost' ) ); ?>
 		<?php $this->panelEnd(); ?>
+
+		<?php $this->panelStart( __( 'Cache preloading', 'vyompress-boost' ), __( 'Warms public pages gradually from the WordPress sitemap without creating traffic spikes.', 'vyompress-boost' ) ); ?>
+		<?php $this->checkbox( 'preload_enabled', __( 'Enable cache preloading', 'vyompress-boost' ), __( 'Allow background requests to prepare pages before visitors arrive.', 'vyompress-boost' ) ); ?>
+		<?php $this->checkbox( 'preload_on_purge', __( 'Preload after cache purges', 'vyompress-boost' ), __( 'Automatically rebuild the cache after content or settings changes.', 'vyompress-boost' ) ); ?>
+		<?php $this->number( 'preload_concurrency', __( 'URLs per batch', 'vyompress-boost' ), 1, 4, 1, __( 'URLs', 'vyompress-boost' ), __( 'Use 1 on shared hosting. Higher values warm faster but use more server resources.', 'vyompress-boost' ) ); ?>
+		<?php $this->number( 'preload_url_limit', __( 'Maximum URLs per run', 'vyompress-boost' ), 10, 500, 10, __( 'URLs', 'vyompress-boost' ), __( 'Limits work discovered from the WordPress sitemap.', 'vyompress-boost' ) ); ?>
+		<?php $this->panelEnd(); ?>
 		<?php
 	}
 
@@ -241,6 +289,8 @@ final class SettingsPage {
 		<?php $this->text( 'cloudflare_zone_id', __( 'Zone ID', 'vyompress-boost' ), __( 'Found on the Cloudflare domain overview page.', 'vyompress-boost' ), '32 hexadecimal characters' ); ?>
 		<?php $this->password( 'cloudflare_api_token', 'VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN', __( 'API token', 'vyompress-boost' ), __( 'Use a scoped token with Cache Purge permission only.', 'vyompress-boost' ), 'clear_cloudflare_api_token' ); ?>
 		<?php $this->checkbox( 'cloudflare_auto_purge', __( 'Automatic purge', 'vyompress-boost' ), __( 'Clear Cloudflare shortly after content, comments, themes, plugins, or cache settings change.', 'vyompress-boost' ) ); ?>
+		<?php $this->checkbox( 'cloudflare_edge_cache', __( 'Manage full-page edge caching', 'vyompress-boost' ), __( 'Lets the setup action create one safe, plugin-owned Cloudflare Cache Rule.', 'vyompress-boost' ) ); ?>
+		<?php $this->number( 'cloudflare_edge_ttl', __( 'Edge cache lifetime', 'vyompress-boost' ), 7200, MONTH_IN_SECONDS, 3600, __( 'seconds', 'vyompress-boost' ), __( 'Cloudflare Free requires at least 7,200 seconds. Purges still publish changes immediately.', 'vyompress-boost' ) ); ?>
 		<p class="vyompress-boost__help"><?php echo esc_html__( 'Create a scoped token from the API Tokens page in your Cloudflare dashboard.', 'vyompress-boost' ); ?></p>
 		<?php $this->panelEnd(); ?>
 		<?php
@@ -252,7 +302,7 @@ final class SettingsPage {
 	private function renderMediaTab(): void {
 		?>
 		<div class="notice notice-info inline"><p><?php echo esc_html__( 'Works with AWS S3, Cloudflare R2, DigitalOcean Spaces, Wasabi, Backblaze B2 S3, and compatible MinIO endpoints.', 'vyompress-boost' ); ?></p></div>
-		<?php $this->panelStart( __( 'S3-compatible media storage', 'vyompress-boost' ), __( 'New uploads and their generated image sizes are copied after WordPress finishes processing them.', 'vyompress-boost' ) ); ?>
+		<?php $this->panelStart( __( 'S3-compatible media storage', 'vyompress-boost' ), __( 'New uploads are copied automatically. Existing files can be migrated, verified, or restored with resumable background jobs below.', 'vyompress-boost' ) ); ?>
 		<?php $this->checkbox( 's3_enabled', __( 'Enable media offloading', 'vyompress-boost' ), __( 'Send new Media Library files to the configured storage provider.', 'vyompress-boost' ) ); ?>
 		<?php $this->text( 's3_endpoint', __( 'S3 endpoint', 'vyompress-boost' ), __( 'Enter the HTTPS endpoint shown by your storage provider.', 'vyompress-boost' ), __( 'Provider endpoint', 'vyompress-boost' ), 'url' ); ?>
 		<?php $this->text( 's3_region', __( 'Region', 'vyompress-boost' ), __( 'Use auto for Cloudflare R2, or your provider’s region name.', 'vyompress-boost' ), 'us-east-1' ); ?>
@@ -389,15 +439,59 @@ elseif ( $has_secret ) :
 	/**
 	 * Render a protected connection-test action.
 	 *
-	 * @param string $action      Admin-post action.
-	 * @param string $nonce       Nonce action.
-	 * @param string $button      Button and panel label.
-	 * @param string $description Action guidance.
+	 * @param string               $action      Admin-post action.
+	 * @param string               $nonce       Nonce action.
+	 * @param string               $button      Button and panel label.
+	 * @param string               $description Action guidance.
+	 * @param array<string,string> $fields      Additional hidden fields.
 	 */
-	private function actionPanel( string $action, string $nonce, string $button, string $description ): void {
+	private function actionPanel( string $action, string $nonce, string $button, string $description, array $fields = array() ): void {
 		?>
-		<section class="vyompress-boost__panel vyompress-boost__panel--action"><div><h2><?php echo esc_html( $button ); ?></h2><p><?php echo esc_html( $description ); ?></p></div><form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="<?php echo esc_attr( $action ); ?>"><?php wp_nonce_field( $nonce ); ?><?php submit_button( $button, 'secondary', 'submit', false ); ?></form></section>
+		<section class="vyompress-boost__panel vyompress-boost__panel--action"><div><h2><?php echo esc_html( $button ); ?></h2><p><?php echo esc_html( $description ); ?></p></div><form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="<?php echo esc_attr( $action ); ?>">
 		<?php
+		foreach ( $fields as $name => $value ) :
+			?>
+			<input type="hidden" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $value ); ?>"><?php endforeach; ?><?php wp_nonce_field( $nonce ); ?><?php submit_button( $button, 'secondary', 'submit', false ); ?></form></section>
+		<?php
+	}
+
+	/**
+	 * Render cache-preload controls and current progress.
+	 */
+	private function renderPreloadActions(): void {
+		$status = $this->preloader->status();
+		$this->actionPanel( 'vyompress_boost_preload', 'vyompress_boost_preload', __( 'Start cache preload', 'vyompress-boost' ), sprintf( /* translators: 1: job state, 2: processed URL count. */ __( 'Current state: %1$s. Processed URLs: %2$d.', 'vyompress-boost' ), $status['state'], $status['processed'] ), array( 'operation' => 'start' ) );
+		if ( in_array( $status['state'], array( 'discovering', 'running' ), true ) ) {
+			$this->actionPanel( 'vyompress_boost_preload', 'vyompress_boost_preload', __( 'Cancel preload', 'vyompress-boost' ), __( 'Stops queued requests without deleting pages already warmed.', 'vyompress-boost' ), array( 'operation' => 'cancel' ) );
+		}
+	}
+
+	/**
+	 * Render existing-library media migration controls.
+	 */
+	private function renderMediaJobActions(): void {
+		$status      = $this->migrator->status();
+		$description = sprintf(
+			/* translators: 1: job state, 2: processed count, 3: failed count. */
+			__( 'Current job: %1$s. Processed: %2$d. Failed: %3$d.', 'vyompress-boost' ),
+			$status['state'],
+			$status['processed'],
+			$status['failed']
+		);
+
+		if ( 'running' === $status['state'] ) {
+			$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Pause media job', 'vyompress-boost' ), $description, array( 'operation' => 'pause' ) );
+
+			return;
+		}
+
+		if ( 'paused' === $status['state'] ) {
+			$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Resume media job', 'vyompress-boost' ), $description, array( 'operation' => 'resume' ) );
+		}
+
+		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Offload existing media', 'vyompress-boost' ), __( 'Copies existing Media Library files in small resumable batches.', 'vyompress-boost' ), array( 'operation' => 'offload' ) );
+		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Verify remote media', 'vyompress-boost' ), __( 'Checks every registered remote object without downloading it.', 'vyompress-boost' ), array( 'operation' => 'verify' ) );
+		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Restore local copies', 'vyompress-boost' ), __( 'Downloads missing local files while continuing to serve configured remote URLs.', 'vyompress-boost' ), array( 'operation' => 'restore' ) );
 	}
 
 	/**
@@ -427,6 +521,7 @@ elseif ( $has_secret ) :
 			$result   = $this->cloudflare->purgeNow();
 			$message .= ' ' . ( true === $result ? __( 'Cloudflare was purged too.', 'vyompress-boost' ) : $result->get_error_message() );
 		}
+		$this->log->add( 'cache', $message, 'success' );
 
 		$this->redirectWithNotice( 'success', $message, 'overview' );
 	}
@@ -441,11 +536,65 @@ elseif ( $has_secret ) :
 	}
 
 	/**
+	 * Install, refresh, or remove the plugin-owned Cloudflare rule.
+	 */
+	public function handleCloudflareRule(): void {
+		$this->authorizeAction( 'vyompress_boost_cloudflare_rule' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified immediately above.
+		$operation = isset( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
+		if ( 'sync' === $operation && ! $this->settings->get( 'cloudflare_edge_cache' ) ) {
+			$this->redirectWithNotice( 'warning', __( 'Enable full-page edge caching and save changes first.', 'vyompress-boost' ), 'cloudflare' );
+		}
+
+		$result  = 'remove' === $operation ? $this->cloudflare->removeEdgeRule() : $this->cloudflare->syncEdgeRule();
+		$message = true === $result ? ( 'remove' === $operation ? __( 'The VyomPress Boost edge rule was removed.', 'vyompress-boost' ) : __( 'The Cloudflare edge cache rule is active.', 'vyompress-boost' ) ) : $result->get_error_message();
+		$this->redirectWithNotice( true === $result ? 'success' : 'error', $message, 'cloudflare' );
+	}
+
+	/**
+	 * Start or cancel cache preloading.
+	 */
+	public function handlePreload(): void {
+		$this->authorizeAction( 'vyompress_boost_preload' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified immediately above.
+		$operation = isset( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
+		if ( 'cancel' === $operation ) {
+			$this->preloader->cancel();
+			$this->redirectWithNotice( 'success', __( 'Cache preloading was cancelled.', 'vyompress-boost' ), 'cache' );
+		}
+
+		$started = $this->preloader->start();
+		$this->redirectWithNotice( $started ? 'success' : 'warning', $started ? __( 'Cache preloading started in the background.', 'vyompress-boost' ) : __( 'Enable cache preloading and save changes first.', 'vyompress-boost' ), 'cache' );
+	}
+
+	/**
+	 * Start, pause, or resume an existing-media job.
+	 */
+	public function handleMediaJob(): void {
+		$this->authorizeAction( 'vyompress_boost_media_job' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified immediately above.
+		$operation = isset( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
+		if ( 'pause' === $operation ) {
+			$this->migrator->pause();
+			$this->redirectWithNotice( 'success', __( 'The media job was paused.', 'vyompress-boost' ), 'media' );
+		}
+
+		if ( 'resume' === $operation ) {
+			$resumed = $this->migrator->resume();
+			$this->redirectWithNotice( $resumed ? 'success' : 'warning', $resumed ? __( 'The media job resumed.', 'vyompress-boost' ) : __( 'There is no paused media job to resume.', 'vyompress-boost' ), 'media' );
+		}
+
+		$started = $this->migrator->start( $operation );
+		$this->redirectWithNotice( $started ? 'success' : 'warning', $started ? __( 'The media job started in the background.', 'vyompress-boost' ) : __( 'Enable and test media storage first.', 'vyompress-boost' ), 'media' );
+	}
+
+	/**
 	 * Validate S3-compatible write and delete permissions.
 	 */
 	public function handleS3Test(): void {
 		$this->authorizeAction( 'vyompress_boost_test_s3' );
 		$result = $this->s3->testConnection();
+		$this->log->add( 'media_storage', true === $result ? __( 'Storage connection test passed.', 'vyompress-boost' ) : $result->get_error_message(), true === $result ? 'success' : 'error' );
 		$this->redirectWithNotice( true === $result ? 'success' : 'error', true === $result ? __( 'Storage connected successfully. The test object was removed.', 'vyompress-boost' ) : $result->get_error_message(), 'media' );
 	}
 

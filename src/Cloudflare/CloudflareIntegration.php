@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace VyomPress\Boost\Cloudflare;
 
 use VyomPress\Boost\Settings;
+use VyomPress\Boost\Operations\ActivityLog;
 use WP_Error;
 
 /**
@@ -24,8 +25,9 @@ final class CloudflareIntegration {
 	 *
 	 * @param Settings         $settings Plugin settings.
 	 * @param CloudflareClient $client   Cloudflare API client.
+	 * @param ActivityLog      $log      Local activity log.
 	 */
-	public function __construct( private Settings $settings, private CloudflareClient $client ) {
+	public function __construct( private Settings $settings, private CloudflareClient $client, private ActivityLog $log ) {
 	}
 
 	/**
@@ -74,6 +76,48 @@ final class CloudflareIntegration {
 			'message' => true === $result ? __( 'Cloudflare cache purged successfully.', 'vyompress-boost' ) : $result->get_error_message(),
 		);
 		update_option( self::STATUS_OPTION, $status, false );
+		$this->log->add( 'cloudflare', $status['message'], true === $result ? 'success' : 'error' );
+
+		return $result;
+	}
+
+	/**
+	 * Install or refresh the plugin-owned Cloudflare edge cache rule.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function syncEdgeRule(): bool|WP_Error {
+		$excluded = preg_split( '/\R/', (string) $this->settings->get( 'excluded_paths' ) );
+		$excluded = false === $excluded ? array() : array_values( array_filter( array_map( 'trim', $excluded ) ) );
+		$result   = $this->client->syncEdgeRule(
+			(string) $this->settings->get( 'cloudflare_zone_id' ),
+			$this->settings->credential( 'cloudflare_api_token', 'VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN' ),
+			(string) wp_parse_url( home_url(), PHP_URL_HOST ),
+			(int) $this->settings->get( 'cloudflare_edge_ttl' ),
+			$excluded,
+			(bool) $this->settings->get( 'cache_query_strings' ),
+			(bool) $this->settings->get( 'separate_mobile_cache' )
+		);
+
+		$message = true === $result ? __( 'Cloudflare edge cache rule synchronized.', 'vyompress-boost' ) : $result->get_error_message();
+		$this->log->add( 'cloudflare_rule', $message, true === $result ? 'success' : 'error' );
+
+		return $result;
+	}
+
+	/**
+	 * Remove the plugin-owned Cloudflare edge cache rule.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function removeEdgeRule(): bool|WP_Error {
+		$result = $this->client->removeEdgeRule(
+			(string) $this->settings->get( 'cloudflare_zone_id' ),
+			$this->settings->credential( 'cloudflare_api_token', 'VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN' )
+		);
+
+		$message = true === $result ? __( 'VyomPress Boost edge cache rule removed.', 'vyompress-boost' ) : $result->get_error_message();
+		$this->log->add( 'cloudflare_rule', $message, true === $result ? 'success' : 'error' );
 
 		return $result;
 	}

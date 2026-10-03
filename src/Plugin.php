@@ -10,14 +10,17 @@ declare(strict_types=1);
 namespace VyomPress\Boost;
 
 use VyomPress\Boost\Admin\SettingsPage;
+use VyomPress\Boost\Cache\CachePreloader;
 use VyomPress\Boost\Cache\CacheStore;
 use VyomPress\Boost\Cache\PageCache;
 use VyomPress\Boost\Cloudflare\CloudflareClient;
 use VyomPress\Boost\Cloudflare\CloudflareIntegration;
 use VyomPress\Boost\Media\MediaOffloader;
+use VyomPress\Boost\Media\MediaMigrator;
 use VyomPress\Boost\Media\S3Client;
 use VyomPress\Boost\Media\S3Signer;
 use VyomPress\Boost\Optimization\AssetOptimizer;
+use VyomPress\Boost\Operations\ActivityLog;
 
 /**
  * Wires the plugin's independently testable modules to WordPress.
@@ -58,17 +61,22 @@ final class Plugin {
 
 		$settings   = new Settings();
 		$store      = new CacheStore();
-		$cloudflare = new CloudflareIntegration( $settings, new CloudflareClient() );
+		$log        = new ActivityLog();
+		$cloudflare = new CloudflareIntegration( $settings, new CloudflareClient(), $log );
 		$s3_client  = new S3Client( $settings, new S3Signer() );
 		$offloader  = new MediaOffloader( $settings, $s3_client );
+		$preloader  = new CachePreloader( $settings, $log );
+		$migrator   = new MediaMigrator( $settings, $offloader, $s3_client, $log );
 
 		( new PageCache( $settings, $store ) )->register();
 		( new AssetOptimizer( $settings ) )->register();
 		$cloudflare->register();
 		$offloader->register();
+		$preloader->register();
+		$migrator->register();
 
 		if ( is_admin() ) {
-			( new SettingsPage( $settings, $store, $cloudflare, $s3_client ) )->register();
+			( new SettingsPage( $settings, $store, $cloudflare, $s3_client, $preloader, $migrator, $log ) )->register();
 		}
 	}
 
@@ -89,6 +97,8 @@ final class Plugin {
 	public static function deactivate(): void {
 		( new CacheStore() )->clear();
 		wp_clear_scheduled_hook( CloudflareIntegration::CRON_HOOK );
+		wp_clear_scheduled_hook( CachePreloader::CRON_HOOK );
+		wp_clear_scheduled_hook( MediaMigrator::CRON_HOOK );
 	}
 
 	/**

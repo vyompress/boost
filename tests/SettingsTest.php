@@ -52,9 +52,20 @@ final class SettingsTest extends TestCase {
 	}
 
 	public function testCacheLifetimesAreBounded(): void {
-		$result = Settings::sanitize(array('cache_ttl' => 99999999, 'browser_ttl' => 1));
+		$result = Settings::sanitize(
+			array(
+				'cache_ttl'           => 99999999,
+				'browser_ttl'         => 1,
+				'cloudflare_edge_ttl' => 1,
+				'preload_concurrency' => 99,
+				'preload_url_limit'   => 9999,
+			)
+		);
 
 		self::assertSame(WEEK_IN_SECONDS, $result['cache_ttl']);
 		self::assertSame(60, $result['browser_ttl']);
+		self::assertSame(7200, $result['cloudflare_edge_ttl']);
+		self::assertSame(4, $result['preload_concurrency']);
+		self::assertSame(500, $result['preload_url_limit']);
 	}
 }

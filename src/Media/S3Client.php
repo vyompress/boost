@@ -75,6 +75,69 @@ final class S3Client {
 	}
 
 	/**
+	 * Verify that one remote object can be read.
+	 *
+	 * @param string $object_key Object key to verify.
+	 * @return true|WP_Error
+	 */
+	public function objectExists( string $object_key ): bool|WP_Error {
+		return $this->request( 'HEAD', $object_key, '', array() );
+	}
+
+	/**
+	 * Download one object directly into a temporary local file.
+	 *
+	 * @param string $object_key Destination object key.
+	 * @param string $filename   Absolute temporary filename.
+	 * @return true|WP_Error
+	 */
+	public function downloadObject( string $object_key, string $filename ): bool|WP_Error {
+		if ( ! $this->isConfigured() ) {
+			return new WP_Error( 'vyompress_s3_missing_credentials', __( 'Complete the storage connection settings first.', 'vyompress-boost' ) );
+		}
+
+		$url           = $this->objectUrl( $object_key );
+		$allow_private = (bool) apply_filters( 'vyompress_boost_allow_private_s3_endpoint', false, $url );
+		if ( ! $this->isAllowedEndpoint( $url, $allow_private ) ) {
+			return new WP_Error( 'vyompress_s3_unsafe_endpoint', __( 'The storage endpoint must use HTTPS and resolve to a public host.', 'vyompress-boost' ) );
+		}
+
+		$headers = $this->signer->sign(
+			'GET',
+			$url,
+			array(),
+			hash( 'sha256', '' ),
+			$this->settings->credential( 's3_access_key', 'VYOMPRESS_BOOST_S3_ACCESS_KEY' ),
+			$this->settings->credential( 's3_secret_key', 'VYOMPRESS_BOOST_S3_SECRET_KEY' ),
+			(string) $this->settings->get( 's3_region' )
+		);
+
+		$args     = array(
+			'method'      => 'GET',
+			'timeout'     => 120,
+			'redirection' => 0,
+			'headers'     => $headers,
+			'stream'      => true,
+			'filename'    => $filename,
+		);
+		$response = $allow_private ? wp_remote_request( $url, $args ) : wp_safe_remote_request( $url, $args );
+		if ( is_wp_error( $response ) ) {
+			wp_delete_file( $filename );
+
+			return $response;
+		}
+
+		$status = wp_remote_retrieve_response_code( $response );
+		if ( $status >= 200 && $status < 300 ) {
+			return true;
+		}
+
+		wp_delete_file( $filename );
+
+		return new WP_Error( 'vyompress_s3_api_error', __( 'The storage provider rejected the download request.', 'vyompress-boost' ), array( 'status' => $status ) );
+	}
+
+	/**
 	 * Verify write and delete permissions using a short-lived probe object.
 	 *
 	 * @return true|WP_Error

@@ -267,6 +267,30 @@
 	display: block;
 }
 
+.vyompress-boost__activity {
+	display: grid;
+	gap: 12px;
+	margin: 18px 0 0;
+}
+
+.vyompress-boost__activity li {
+	display: grid;
+	gap: 3px;
+	margin: 0;
+	padding-bottom: 12px;
+	border-bottom: 1px solid #e8ecf2;
+}
+
+.vyompress-boost__activity li:last-child {
+	padding-bottom: 0;
+	border-bottom: 0;
+}
+
+.vyompress-boost__activity time {
+	color: #667085;
+	font-size: 12px;
+}
+
 .vyompress-boost__steps span {
 	margin-top: 3px;
 	color: #646970;

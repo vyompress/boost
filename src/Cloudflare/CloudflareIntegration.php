@@ -62,7 +62,7 @@ final class CloudflareIntegration {
 	 *
 	 * @return true|WP_Error
 	 */
-	public function purgeNow(): true|WP_Error {
+	public function purgeNow(): bool|WP_Error {
 		$result = $this->client->purgeEverything(
 			(string) $this->settings->get( 'cloudflare_zone_id' ),
 			$this->settings->credential( 'cloudflare_api_token', 'VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN' )

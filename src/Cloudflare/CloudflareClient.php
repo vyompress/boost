@@ -24,7 +24,7 @@ final class CloudflareClient {
 	 * @param string $api_token Scoped Cloudflare API token.
 	 * @return true|WP_Error
 	 */
-	public function purgeEverything( string $zone_id, string $api_token ): true|WP_Error {
+	public function purgeEverything( string $zone_id, string $api_token ): bool|WP_Error {
 		if ( '' === $zone_id || '' === $api_token ) {
 			return new WP_Error( 'vyompress_cloudflare_missing_credentials', __( 'Add a zone ID and API token first.', 'vyompress-boost' ) );
 		}

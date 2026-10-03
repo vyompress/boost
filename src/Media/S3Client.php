@@ -43,7 +43,7 @@ final class S3Client {
 	 * @param string $content_type Media MIME type.
 	 * @return true|WP_Error
 	 */
-	public function putFile( string $object_key, string $file_path, string $content_type ): true|WP_Error {
+	public function putFile( string $object_key, string $file_path, string $content_type ): bool|WP_Error {
 		if ( ! is_readable( $file_path ) ) {
 			return new WP_Error( 'vyompress_s3_unreadable_file', __( 'A media file could not be read for offloading.', 'vyompress-boost' ) );
 		}
@@ -70,7 +70,7 @@ final class S3Client {
 	 * @param string $object_key Object key to delete.
 	 * @return true|WP_Error
 	 */
-	public function deleteObject( string $object_key ): true|WP_Error {
+	public function deleteObject( string $object_key ): bool|WP_Error {
 		return $this->request( 'DELETE', $object_key, '', array() );
 	}
 
@@ -79,7 +79,7 @@ final class S3Client {
 	 *
 	 * @return true|WP_Error
 	 */
-	public function testConnection(): true|WP_Error {
+	public function testConnection(): bool|WP_Error {
 		$key    = '.vyompress-boost-test-' . wp_generate_uuid4() . '.txt';
 		$result = $this->request( 'PUT', $key, 'VyomPress Boost connection test.', array( 'Content-Type' => 'text/plain' ) );
 
@@ -113,7 +113,7 @@ final class S3Client {
 	 * @param array<string,string> $headers Request headers.
 	 * @return true|WP_Error
 	 */
-	private function request( string $method, string $object_key, string $body, array $headers ): true|WP_Error {
+	private function request( string $method, string $object_key, string $body, array $headers ): bool|WP_Error {
 		if ( ! $this->isConfigured() ) {
 			return new WP_Error( 'vyompress_s3_missing_credentials', __( 'Complete the storage connection settings first.', 'vyompress-boost' ) );
 		}

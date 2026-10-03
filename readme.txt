@@ -3,7 +3,7 @@ Contributors: vyompress
 Tags: cache, performance, cloudflare, s3, media
 Requires at least: 6.4
 Tested up to: 7.1
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,11 @@ VyomPress Boost combines practical WordPress performance tools in one focused pl
 * Site Health checks for cache storage and integration completeness.
 * Local activity history for purges, preloads, Cloudflare operations, and media jobs.
 * Optional emoji, embed, and Heartbeat optimizations.
+* Browser-native image and iframe lazy loading with first-image LCP priority.
+* Opt-in JavaScript defer and selective third-party interaction delay controls.
+* WordPress-native speculative navigation controls and HTTPS preconnect hints.
+* Optional guest Dashicons and jQuery Migrate removal.
+* Guarded manual or weekly cleanup for expired transients, old revisions, trash, and spam.
 * No telemetry, advertisements, or VyomPress account.
 
 Source code, development documentation, and issue tracking are available at https://github.com/vyompress/boost.
@@ -120,6 +125,14 @@ For another compatible service or a self-hosted MinIO deployment, review the end
 
 == Changelog ==
 
+= 0.4.0 =
+
+* Added safe JavaScript defer controls and selective interaction-based third-party script delay.
+* Added native image and iframe lazy loading controls with first-content-image LCP priority.
+* Added WordPress Speculation Rules controls, cache-aware navigation exclusions, and preconnect hints.
+* Added optional guest Dashicons and jQuery Migrate removal.
+* Added bounded database cleanup with retention controls and optional weekly scheduling.
+
 = 0.3.0 =
 
 * Added a throttled sitemap cache preloader with automatic post-purge warming.
@@ -140,6 +153,10 @@ For another compatible service or a self-hosted MinIO deployment, review the end
 * Initial public release with anonymous page caching and focused WordPress optimizations.
 
 == Upgrade Notice ==
+
+= 0.4.0 =
+
+Adds opt-in Core Web Vitals and database-maintenance controls. Existing sites retain conservative defaults.
 
 = 0.3.0 =
 

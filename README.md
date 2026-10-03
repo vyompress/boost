@@ -10,6 +10,8 @@ VyomPress Boost is a production-focused WordPress performance plugin with conser
 - Safe management of one plugin-owned Cloudflare full-page edge Cache Rule.
 - S3 Signature Version 4 media uploads compatible with AWS S3, Cloudflare R2, Spaces, Wasabi, Backblaze B2 S3, and compatible MinIO endpoints.
 - Resumable jobs for existing-media offload, remote verification, and local restoration.
+- Browser-native lazy loading, LCP image priority, speculative navigation, resource hints, and guarded JavaScript delivery controls.
+- Bounded database maintenance with retention controls and optional weekly scheduling.
 - Credentials may be kept in `wp-config.php`; secret values are never returned to the settings-page browser.
 - Responsive, accessible administration UI with connection tests and Site Health checks.
 - No telemetry, advertising, remote code, or VyomPress account.

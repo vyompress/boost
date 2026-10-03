@@ -20,6 +20,8 @@ use VyomPress\Boost\Media\MediaMigrator;
 use VyomPress\Boost\Media\S3Client;
 use VyomPress\Boost\Media\S3Signer;
 use VyomPress\Boost\Optimization\AssetOptimizer;
+use VyomPress\Boost\Optimization\DatabaseOptimizer;
+use VyomPress\Boost\Optimization\FrontendOptimizer;
 use VyomPress\Boost\Operations\ActivityLog;
 
 /**
@@ -67,16 +69,19 @@ final class Plugin {
 		$offloader  = new MediaOffloader( $settings, $s3_client );
 		$preloader  = new CachePreloader( $settings, $log );
 		$migrator   = new MediaMigrator( $settings, $offloader, $s3_client, $log );
+		$database   = new DatabaseOptimizer( $settings, $log );
 
 		( new PageCache( $settings, $store ) )->register();
 		( new AssetOptimizer( $settings ) )->register();
+		( new FrontendOptimizer( $settings ) )->register();
 		$cloudflare->register();
 		$offloader->register();
 		$preloader->register();
 		$migrator->register();
+		$database->register();
 
 		if ( is_admin() ) {
-			( new SettingsPage( $settings, $store, $cloudflare, $s3_client, $preloader, $migrator, $log ) )->register();
+			( new SettingsPage( $settings, $store, $cloudflare, $s3_client, $preloader, $migrator, $database, $log ) )->register();
 		}
 	}
 
@@ -99,6 +104,7 @@ final class Plugin {
 		wp_clear_scheduled_hook( CloudflareIntegration::CRON_HOOK );
 		wp_clear_scheduled_hook( CachePreloader::CRON_HOOK );
 		wp_clear_scheduled_hook( MediaMigrator::CRON_HOOK );
+		wp_clear_scheduled_hook( DatabaseOptimizer::CRON_HOOK );
 	}
 
 	/**

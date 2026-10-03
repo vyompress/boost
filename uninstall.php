@@ -25,6 +25,7 @@ function vyompress_boost_uninstall_site(): void {
 	wp_clear_scheduled_hook( 'vyompress_boost_cloudflare_purge' );
 	wp_clear_scheduled_hook( 'vyompress_boost_preload_batch' );
 	wp_clear_scheduled_hook( 'vyompress_boost_media_migration_batch' );
+	wp_clear_scheduled_hook( 'vyompress_boost_database_cleanup' );
 }
 
 if ( is_multisite() ) {

@@ -14,6 +14,7 @@ use VyomPress\Boost\Cache\CacheStore;
 use VyomPress\Boost\Cloudflare\CloudflareIntegration;
 use VyomPress\Boost\Media\MediaMigrator;
 use VyomPress\Boost\Media\S3Client;
+use VyomPress\Boost\Optimization\DatabaseOptimizer;
 use VyomPress\Boost\Operations\ActivityLog;
 use VyomPress\Boost\Settings;
 
@@ -33,6 +34,7 @@ final class SettingsPage {
 	 * @param S3Client              $s3         S3-compatible storage client.
 	 * @param CachePreloader        $preloader  Cache preloader.
 	 * @param MediaMigrator         $migrator   Existing-media migration worker.
+	 * @param DatabaseOptimizer     $database   Guarded database maintenance.
 	 * @param ActivityLog           $log        Local activity log.
 	 */
 	public function __construct(
@@ -42,6 +44,7 @@ final class SettingsPage {
 		private S3Client $s3,
 		private CachePreloader $preloader,
 		private MediaMigrator $migrator,
+		private DatabaseOptimizer $database,
 		private ActivityLog $log
 	) {
 	}
@@ -60,6 +63,7 @@ final class SettingsPage {
 		add_action( 'admin_post_vyompress_boost_cloudflare_rule', array( $this, 'handleCloudflareRule' ) );
 		add_action( 'admin_post_vyompress_boost_preload', array( $this, 'handlePreload' ) );
 		add_action( 'admin_post_vyompress_boost_media_job', array( $this, 'handleMediaJob' ) );
+		add_action( 'admin_post_vyompress_boost_database_cleanup', array( $this, 'handleDatabaseCleanup' ) );
 		add_action( 'admin_notices', array( $this, 'renderNotice' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( VYOMPRESS_BOOST_FILE ), array( $this, 'actionLinks' ) );
 		add_filter( 'site_status_tests', array( $this, 'siteHealthTests' ) );
@@ -167,6 +171,8 @@ final class SettingsPage {
 				<?php elseif ( 'media' === $tab ) : ?>
 					<?php $this->actionPanel( 'vyompress_boost_test_s3', 'vyompress_boost_test_s3', __( 'Test storage connection', 'vyompress-boost' ), __( 'Creates and immediately removes a tiny test object. Save changes first.', 'vyompress-boost' ) ); ?>
 					<?php $this->renderMediaJobActions(); ?>
+				<?php elseif ( 'optimizations' === $tab ) : ?>
+					<?php $this->actionPanel( 'vyompress_boost_database_cleanup', 'vyompress_boost_database_cleanup', __( 'Run database cleanup now', 'vyompress-boost' ), __( 'Runs one bounded cleanup pass using the saved retention and data-type choices.', 'vyompress-boost' ) ); ?>
 				<?php endif; ?>
 			<?php endif; ?>
 		</div>
@@ -322,10 +328,60 @@ final class SettingsPage {
 	 * Render safe WordPress optimization toggles.
 	 */
 	private function renderOptimizationsTab(): void {
+		$this->panelStart( __( 'Images and embedded content', 'vyompress-boost' ), __( 'Safe browser-native improvements with sensible Largest Contentful Paint handling.', 'vyompress-boost' ) );
+		$this->checkbox( 'lazy_load_images', __( 'Lazy-load images', 'vyompress-boost' ), __( 'Uses WordPress and browser-native lazy loading for off-screen images.', 'vyompress-boost' ) );
+		$this->checkbox( 'lazy_load_iframes', __( 'Lazy-load iframes', 'vyompress-boost' ), __( 'Defers off-screen videos, maps, and other embedded frames.', 'vyompress-boost' ) );
+		$this->checkbox( 'lcp_image_priority', __( 'Prioritize the first content image', 'vyompress-boost' ), __( 'Adds high fetch priority and prevents lazy loading for the first WordPress attachment image.', 'vyompress-boost' ) );
+		$this->panelEnd();
+
+		$this->panelStart( __( 'JavaScript delivery', 'vyompress-boost' ), __( 'Start with delay for known third-party scripts. Global deferring is advanced and should be tested after theme or plugin changes.', 'vyompress-boost' ) );
+		$this->checkbox( 'defer_javascript', __( 'Defer public JavaScript', 'vyompress-boost' ), __( 'Adds defer to eligible external WordPress scripts while preserving configured exclusions.', 'vyompress-boost' ) );
+		$this->textarea( 'defer_javascript_exclusions', __( 'Never defer matching scripts', 'vyompress-boost' ), __( 'One script handle or URL fragment per line.', 'vyompress-boost' ) );
+		$this->checkbox( 'delay_javascript', __( 'Delay selected third-party scripts', 'vyompress-boost' ), __( 'Loads only matching scripts after visitor interaction or the safety timeout.', 'vyompress-boost' ) );
+		$this->textarea( 'delay_javascript_includes', __( 'Scripts to delay', 'vyompress-boost' ), __( 'One URL fragment per line. Analytics defaults are supplied but remain inactive until enabled.', 'vyompress-boost' ) );
+		$this->number( 'delay_javascript_timeout', __( 'Delay safety timeout', 'vyompress-boost' ), 1000, 15000, 500, __( 'milliseconds', 'vyompress-boost' ), __( 'Ensures delayed scripts eventually load even without interaction.', 'vyompress-boost' ) );
+		$this->panelEnd();
+
+		$this->panelStart( __( 'Navigation and connections', 'vyompress-boost' ), __( 'Uses WordPress core speculation rules and standard browser resource hints.', 'vyompress-boost' ) );
+		$this->select(
+			'speculation_mode',
+			__( 'Navigation acceleration', 'vyompress-boost' ),
+			array(
+				'off'       => __( 'Off', 'vyompress-boost' ),
+				'auto'      => __( 'WordPress default', 'vyompress-boost' ),
+				'prefetch'  => __( 'Prefetch pages', 'vyompress-boost' ),
+				'prerender' => __( 'Prerender pages', 'vyompress-boost' ),
+			),
+			__( 'Prefetch is safer; prerender is faster but executes the destination page in advance.', 'vyompress-boost' )
+		);
+		$this->select(
+			'speculation_eagerness',
+			__( 'Navigation eagerness', 'vyompress-boost' ),
+			array(
+				'auto'         => __( 'WordPress default', 'vyompress-boost' ),
+				'conservative' => __( 'Conservative', 'vyompress-boost' ),
+				'moderate'     => __( 'On hover', 'vyompress-boost' ),
+				'eager'        => __( 'Eager', 'vyompress-boost' ),
+			),
+			__( 'Moderate offers a strong speed benefit without immediately loading every link.', 'vyompress-boost' )
+		);
+		$this->textarea( 'preconnect_origins', __( 'Preconnect origins', 'vyompress-boost' ), __( 'One HTTPS origin per line, such as https://fonts.gstatic.com. Add only services used on most pages.', 'vyompress-boost' ) );
+		$this->panelEnd();
+
 		$this->panelStart( __( 'WordPress optimizations', 'vyompress-boost' ), __( 'Each change is independent and immediately reversible.', 'vyompress-boost' ) );
 		$this->checkbox( 'disable_emojis', __( 'Remove emoji assets', 'vyompress-boost' ), __( 'Stops WordPress loading its emoji detection script and styles.', 'vyompress-boost' ) );
 		$this->checkbox( 'disable_embeds', __( 'Remove embed helper', 'vyompress-boost' ), __( 'Removes the front-end oEmbed discovery links and helper script.', 'vyompress-boost' ) );
 		$this->checkbox( 'reduce_heartbeat', __( 'Reduce Heartbeat frequency', 'vyompress-boost' ), __( 'Limits background Heartbeat requests to once per minute.', 'vyompress-boost' ) );
+		$this->checkbox( 'disable_guest_dashicons', __( 'Remove guest Dashicons', 'vyompress-boost' ), __( 'Stops loading the admin icon font for logged-out visitors.', 'vyompress-boost' ) );
+		$this->checkbox( 'remove_jquery_migrate', __( 'Remove jQuery Migrate', 'vyompress-boost' ), __( 'Advanced: removes the compatibility layer used by some older themes and plugins.', 'vyompress-boost' ) );
+		$this->panelEnd();
+
+		$this->panelStart( __( 'Database maintenance', 'vyompress-boost' ), __( 'Removes only expired transients and selected old disposable WordPress records. Work is capped at 100 records per type and run.', 'vyompress-boost' ) );
+		$this->checkbox( 'database_cleanup_enabled', __( 'Run weekly cleanup', 'vyompress-boost' ), __( 'Schedules a guarded cleanup in WordPress cron.', 'vyompress-boost' ) );
+		$this->number( 'database_retention_days', __( 'Keep disposable records for', 'vyompress-boost' ), 7, 365, 1, __( 'days', 'vyompress-boost' ), __( 'Only records older than this are removed.', 'vyompress-boost' ) );
+		$this->checkbox( 'database_cleanup_revisions', __( 'Remove old revisions', 'vyompress-boost' ), __( 'Permanently deletes revisions older than the retention period.', 'vyompress-boost' ) );
+		$this->checkbox( 'database_cleanup_trash', __( 'Empty old trash', 'vyompress-boost' ), __( 'Permanently deletes trashed posts older than the retention period.', 'vyompress-boost' ) );
+		$this->checkbox( 'database_cleanup_spam', __( 'Remove old spam comments', 'vyompress-boost' ), __( 'Permanently deletes spam comments older than the retention period.', 'vyompress-boost' ) );
 		$this->panelEnd();
 	}
 
@@ -393,6 +449,24 @@ final class SettingsPage {
 	private function text( string $key, string $label, string $description, string $placeholder = '', string $type = 'text' ): void {
 		?>
 		<label class="vyompress-boost__field"><strong><?php echo esc_html( $label ); ?></strong><input class="regular-text" type="<?php echo esc_attr( $type ); ?>" name="<?php echo esc_attr( Settings::OPTION . '[' . $key . ']' ); ?>" value="<?php echo esc_attr( (string) $this->settings->get( $key ) ); ?>" placeholder="<?php echo esc_attr( $placeholder ); ?>" autocomplete="off"><small><?php echo esc_html( $description ); ?></small></label>
+		<?php
+	}
+
+	/**
+	 * Render a validated selection field.
+	 *
+	 * @param string               $key         Settings key.
+	 * @param string               $label       Field label.
+	 * @param array<string,string> $options     Value and label pairs.
+	 * @param string               $description Field guidance.
+	 */
+	private function select( string $key, string $label, array $options, string $description ): void {
+		?>
+		<label class="vyompress-boost__field"><strong><?php echo esc_html( $label ); ?></strong><select name="<?php echo esc_attr( Settings::OPTION . '[' . $key . ']' ); ?>">
+		<?php
+		foreach ( $options as $value => $option_label ) :
+			?>
+			<option value="<?php echo esc_attr( $value ); ?>" <?php selected( (string) $this->settings->get( $key ), $value ); ?>><?php echo esc_html( $option_label ); ?></option><?php endforeach; ?></select><small><?php echo esc_html( $description ); ?></small></label>
 		<?php
 	}
 
@@ -586,6 +660,20 @@ elseif ( $has_secret ) :
 
 		$started = $this->migrator->start( $operation );
 		$this->redirectWithNotice( $started ? 'success' : 'warning', $started ? __( 'The media job started in the background.', 'vyompress-boost' ) : __( 'Enable and test media storage first.', 'vyompress-boost' ), 'media' );
+	}
+
+	/**
+	 * Run one bounded database cleanup pass.
+	 */
+	public function handleDatabaseCleanup(): void {
+		$this->authorizeAction( 'vyompress_boost_database_cleanup' );
+		$result = $this->database->run();
+		$total  = array_sum( $result );
+		$this->redirectWithNotice(
+			'success',
+			sprintf( /* translators: %d: removed database record count. */ __( 'Database cleanup completed. %d records were removed.', 'vyompress-boost' ), $total ),
+			'optimizations'
+		);
 	}
 
 	/**

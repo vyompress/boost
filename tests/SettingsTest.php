@@ -68,4 +68,20 @@ final class SettingsTest extends TestCase {
 		self::assertSame(4, $result['preload_concurrency']);
 		self::assertSame(500, $result['preload_url_limit']);
 	}
+
+	public function testFrontendOptimizationSettingsAreValidated(): void {
+		$result = Settings::sanitize(
+			array(
+				'delay_javascript_timeout' => 99999,
+				'speculation_mode'         => 'invalid',
+				'speculation_eagerness'    => 'moderate',
+				'preconnect_origins'       => "https://Fonts.Example.com/path\nhttp://unsafe.example.com\nnot-a-url",
+			)
+		);
+
+		self::assertSame(15000, $result['delay_javascript_timeout']);
+		self::assertSame('auto', $result['speculation_mode']);
+		self::assertSame('moderate', $result['speculation_eagerness']);
+		self::assertSame('https://fonts.example.com', $result['preconnect_origins']);
+	}
 }

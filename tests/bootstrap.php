@@ -40,6 +40,12 @@ if (! function_exists('sanitize_text_field')) {
 	}
 }
 
+if (! function_exists('sanitize_key')) {
+	function sanitize_key(string $value): string {
+		return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)) ?? '';
+	}
+}
+
 if (! function_exists('esc_url_raw')) {
 	function esc_url_raw(string $url): string {
 		return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';

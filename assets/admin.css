@@ -1,24 +1,316 @@
 .vyompress-boost {
-	max-width: 920px;
+	max-width: 1080px;
+	color: #1d2327;
+}
+
+.vyompress-boost__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 24px;
+	margin: 22px 0 18px;
+}
+
+.vyompress-boost__header h1 {
+	margin: 0 0 6px;
+	font-size: 28px;
+}
+
+.vyompress-boost__header p {
+	margin: 0;
+	color: #50575e;
+	font-size: 14px;
+}
+
+.vyompress-boost__version {
+	padding: 5px 10px;
+	border-radius: 999px;
+	background: #e7f4ed;
+	color: #08783e;
+	font-weight: 600;
+}
+
+.vyompress-boost .nav-tab-wrapper {
+	margin-bottom: 22px;
 }
 
 .vyompress-boost__status {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 12px;
-	margin: 24px 0;
+	margin: 22px 0;
 }
 
 .vyompress-boost__status > div {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	padding: 16px;
-	border: 1px solid #c3c4c7;
-	border-radius: 4px;
+	gap: 10px;
+	min-height: 70px;
+	padding: 18px;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
 	background: #fff;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
 }
 
 .vyompress-boost__status span {
-	color: #50575e;
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	color: #646970;
+}
+
+.vyompress-boost__status span::before {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #a7aaad;
+	content: "";
+}
+
+.vyompress-boost__status .is-ready {
+	color: #08783e;
+}
+
+.vyompress-boost__status .is-ready::before {
+	background: #00a32a;
+}
+
+.vyompress-boost__grid {
+	display: grid;
+	grid-template-columns: 1.45fr 1fr;
+	gap: 18px;
+}
+
+.vyompress-boost__panel {
+	margin: 0 0 18px;
+	padding: 24px;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.vyompress-boost__panel h2 {
+	margin: 0 0 8px;
+	font-size: 18px;
+}
+
+.vyompress-boost__panel > .description,
+.vyompress-boost__panel > p {
+	margin: 0 0 18px;
+	color: #646970;
+}
+
+.vyompress-boost__panel--action {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+}
+
+.vyompress-boost__panel--action p {
+	margin: 5px 0 0;
+}
+
+.vyompress-boost__fields {
+	margin-top: 22px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.vyompress-boost__field {
+	display: grid;
+	grid-template-columns: minmax(190px, 0.7fr) minmax(260px, 1.3fr);
+	align-items: start;
+	gap: 8px 28px;
+	padding: 19px 0;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.vyompress-boost__field > strong,
+.vyompress-boost__field > label > strong {
+	display: block;
+	padding-top: 7px;
+}
+
+.vyompress-boost__field > input,
+.vyompress-boost__field > textarea,
+.vyompress-boost__field > .vyompress-boost__input,
+.vyompress-boost__field > label > input {
+	grid-column: 2;
+}
+
+.vyompress-boost__field small,
+.vyompress-boost__credential-state,
+.vyompress-boost__clear {
+	grid-column: 2;
+	display: block;
+	color: #646970;
+	line-height: 1.5;
+}
+
+.vyompress-boost__field > label {
+	display: contents;
+}
+
+.vyompress-boost__field input.regular-text,
+.vyompress-boost__field textarea {
+	width: 100%;
+	max-width: 620px;
+}
+
+.vyompress-boost__field--toggle {
+	grid-template-columns: 1fr auto;
+	align-items: center;
+}
+
+.vyompress-boost__field--toggle p {
+	margin: 5px 0 0;
+	color: #646970;
+}
+
+.vyompress-boost__switch {
+	position: relative;
+	display: inline-flex;
+	grid-column: 2;
+}
+
+.vyompress-boost__switch input {
+	position: absolute;
+	opacity: 0;
+}
+
+.vyompress-boost__switch span[aria-hidden] {
+	position: relative;
+	display: block;
+	width: 42px;
+	height: 24px;
+	border-radius: 999px;
+	background: #a7aaad;
+	transition: background 0.18s ease;
+}
+
+.vyompress-boost__switch span[aria-hidden]::after {
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+	content: "";
+	transition: transform 0.18s ease;
+}
+
+.vyompress-boost__switch input:checked + span {
+	background: #2271b1;
+}
+
+.vyompress-boost__switch input:checked + span::after {
+	transform: translateX(18px);
+}
+
+.vyompress-boost__switch input:focus-visible + span {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.vyompress-boost__steps {
+	margin: 22px 0 0;
+	counter-reset: boost-step;
+}
+
+.vyompress-boost__steps li {
+	position: relative;
+	margin: 0;
+	padding: 0 0 24px 42px;
+	list-style: none;
+	counter-increment: boost-step;
+}
+
+.vyompress-boost__steps li::before {
+	position: absolute;
+	top: -2px;
+	left: 0;
+	display: grid;
+	width: 26px;
+	height: 26px;
+	place-items: center;
+	border: 2px solid #a7aaad;
+	border-radius: 50%;
+	background: #fff;
+	color: #646970;
+	content: counter(boost-step);
+	font-weight: 600;
+}
+
+.vyompress-boost__steps li.is-complete::before {
+	border-color: #00a32a;
+	background: #00a32a;
+	color: #fff;
+	content: "✓";
+}
+
+.vyompress-boost__steps li:not(:last-child)::after {
+	position: absolute;
+	top: 28px;
+	left: 13px;
+	width: 2px;
+	height: calc(100% - 27px);
+	background: #dcdcde;
+	content: "";
+}
+
+.vyompress-boost__steps strong,
+.vyompress-boost__steps span {
+	display: block;
+}
+
+.vyompress-boost__steps span {
+	margin-top: 3px;
+	color: #646970;
+}
+
+.vyompress-boost__help {
+	margin: 18px 0 0;
+}
+
+@media (max-width: 782px) {
+	.vyompress-boost__status,
+	.vyompress-boost__grid {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.vyompress-boost__field {
+		grid-template-columns: 1fr;
+	}
+
+	.vyompress-boost__field > input,
+	.vyompress-boost__field > textarea,
+	.vyompress-boost__field > .vyompress-boost__input,
+	.vyompress-boost__field > label > input,
+	.vyompress-boost__field small,
+	.vyompress-boost__credential-state,
+	.vyompress-boost__clear,
+	.vyompress-boost__switch {
+		grid-column: 1;
+	}
+
+	.vyompress-boost__panel--action {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+}
+
+@media (max-width: 520px) {
+	.vyompress-boost__status,
+	.vyompress-boost__grid {
+		grid-template-columns: 1fr;
+	}
+
+	.vyompress-boost__header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
 }

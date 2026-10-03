@@ -46,6 +46,9 @@ $second = vyompress_boost_request( $base_url . '/', array( 'headers' => $headers
 vyompress_boost_assert( 'HIT' === wp_remote_retrieve_header( $second, 'x-vyompress-cache' ), 'Second anonymous request must hit.' );
 vyompress_boost_assert( str_contains( wp_remote_retrieve_header( $second, 'cache-control' ), 'public' ), 'Cache hit must be publicly cacheable.' );
 
+$tracking = vyompress_boost_request( $base_url . '/?utm_source=smoke-test', array( 'headers' => $headers ) );
+vyompress_boost_assert( 'HIT' === wp_remote_retrieve_header( $tracking, 'x-vyompress-cache' ), 'Ignored tracking parameters must reuse the canonical cache entry.' );
+
 $query = vyompress_boost_request( $base_url . '/?cache-bypass=1', array( 'headers' => $headers ) );
 vyompress_boost_assert( '' === wp_remote_retrieve_header( $query, 'x-vyompress-cache' ), 'Query-string request must bypass.' );
 

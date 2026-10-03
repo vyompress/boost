@@ -48,6 +48,61 @@ final class CachePolicy {
 	}
 
 	/**
+	 * Normalize an eligible request URI or return null when it must bypass cache.
+	 *
+	 * Tracking parameters are discarded before deciding whether meaningful query
+	 * parameters remain. Remaining parameters are sorted for stable cache keys.
+	 *
+	 * @param string            $request_uri       Request path and query string.
+	 * @param bool              $cache_query       Whether non-tracking query strings may be cached.
+	 * @param array<int,string> $ignored_parameters Query parameter names to ignore.
+	 */
+	public function normalizedUri( string $request_uri, bool $cache_query, array $ignored_parameters ): ?string {
+		$path  = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+		$query = (string) wp_parse_url( $request_uri, PHP_URL_QUERY );
+
+		if ( '' === $query ) {
+			return '' === $path ? '/' : $path;
+		}
+
+		parse_str( $query, $parameters );
+		foreach ( $ignored_parameters as $ignored ) {
+			unset( $parameters[ $ignored ] );
+		}
+
+		if ( array() === $parameters ) {
+			return '' === $path ? '/' : $path;
+		}
+
+		if ( ! $cache_query ) {
+			return null;
+		}
+
+		ksort( $parameters );
+
+		return ( '' === $path ? '/' : $path ) . '?' . http_build_query( $parameters, '', '&', PHP_QUERY_RFC3986 );
+	}
+
+	/**
+	 * Whether the request path begins with a configured exclusion.
+	 *
+	 * @param string            $request_uri Request URI.
+	 * @param array<int,string> $excluded_paths Root-relative excluded paths.
+	 */
+	public function isExcludedPath( string $request_uri, array $excluded_paths ): bool {
+		$path = '/' . ltrim( (string) wp_parse_url( $request_uri, PHP_URL_PATH ), '/' );
+
+		foreach ( $excluded_paths as $excluded ) {
+			$excluded = '/' . ltrim( trim( $excluded ), '/' );
+			if ( '/' !== $excluded && str_starts_with( $path, $excluded ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Check for login, session, cart, or commenter cookies.
 	 *
 	 * @param array<string, mixed> $cookies Request cookies.

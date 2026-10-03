@@ -12,6 +12,11 @@ namespace VyomPress\Boost;
 use VyomPress\Boost\Admin\SettingsPage;
 use VyomPress\Boost\Cache\CacheStore;
 use VyomPress\Boost\Cache\PageCache;
+use VyomPress\Boost\Cloudflare\CloudflareClient;
+use VyomPress\Boost\Cloudflare\CloudflareIntegration;
+use VyomPress\Boost\Media\MediaOffloader;
+use VyomPress\Boost\Media\S3Client;
+use VyomPress\Boost\Media\S3Signer;
 use VyomPress\Boost\Optimization\AssetOptimizer;
 
 /**
@@ -51,14 +56,19 @@ final class Plugin {
 
 		$this->booted = true;
 
-		$settings = new Settings();
-		$store    = new CacheStore();
+		$settings   = new Settings();
+		$store      = new CacheStore();
+		$cloudflare = new CloudflareIntegration( $settings, new CloudflareClient() );
+		$s3_client  = new S3Client( $settings, new S3Signer() );
+		$offloader  = new MediaOffloader( $settings, $s3_client );
 
 		( new PageCache( $settings, $store ) )->register();
 		( new AssetOptimizer( $settings ) )->register();
+		$cloudflare->register();
+		$offloader->register();
 
 		if ( is_admin() ) {
-			( new SettingsPage( $settings, $store ) )->register();
+			( new SettingsPage( $settings, $store, $cloudflare, $s3_client ) )->register();
 		}
 	}
 
@@ -78,6 +88,7 @@ final class Plugin {
 	 */
 	public static function deactivate(): void {
 		( new CacheStore() )->clear();
+		wp_clear_scheduled_hook( CloudflareIntegration::CRON_HOOK );
 	}
 
 	/**

@@ -1,70 +1,135 @@
 === VyomPress Boost ===
 Contributors: vyompress
-Tags: cache, performance, optimization, speed, core web vitals
+Tags: cache, performance, cloudflare, s3, media
 Requires at least: 6.4
 Tested up to: 7.1
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Safe page caching and focused performance optimizations with no account, tracking, or external service required.
+Fast page caching, Cloudflare automation, and S3-compatible media offloading with a setup anyone can understand.
 
 == Description ==
 
-VyomPress Boost improves WordPress performance with conservative page caching and independently configurable optimizations.
+VyomPress Boost combines practical WordPress performance tools in one focused plugin. Its conservative defaults work immediately, while optional cloud integrations remain off until an administrator configures and enables them.
 
-The page cache serves complete HTML responses to anonymous visitors. It automatically bypasses logged-in users, previews, searches, feeds, error pages, query-string URLs, password-protected content, commenters, and common ecommerce sessions. Cached pages are cleared when content, comments, themes, plugins, or Customizer settings change.
+= Page cache =
 
-Features:
+* Anonymous HTML page caching with automatic invalidation.
+* Separate page and browser cache lifetimes.
+* Optional mobile cache variants.
+* Tracking-parameter normalization and opt-in query-string caching.
+* Editable path exclusions with safe store defaults.
+* Automatic bypasses for logged-in users, previews, searches, feeds, error pages, REST requests, password-protected content, commenters, and common ecommerce sessions.
 
-* Anonymous HTML page cache with configurable lifetime.
-* Automatic cache invalidation and a manual purge action.
-* Browser cache headers for validated cache hits.
-* Optional removal of WordPress emoji assets.
-* Optional removal of front-end embed assets.
-* Optional reduction of Heartbeat API frequency.
-* Site Health integration for cache storage.
-* No account, telemetry, advertisements, or external requests.
+= Cloudflare =
+
+* Scoped API-token authentication.
+* Debounced automatic edge-cache purges after site changes.
+* One-click connection test and manual purge.
+* API tokens can be supplied through `wp-config.php` instead of the database.
+
+= S3-compatible media storage =
+
+* Offloads new originals and generated image sizes.
+* Works with AWS S3 and compatible services such as Cloudflare R2, DigitalOcean Spaces, Wasabi, Backblaze B2 S3, and MinIO.
+* Path-style and virtual-host-style endpoints.
+* Optional custom CDN/public URL and object prefix.
+* Safe default keeps local copies; local removal is explicitly opt-in.
+* Deletes registered remote objects when their attachment is permanently deleted.
+* Access credentials can be supplied through `wp-config.php`.
+
+= Simple operations =
+
+* Guided, responsive settings screen with plain-language status cards.
+* Connection tests that explain failures without exposing credentials.
+* Site Health checks for cache storage and integration completeness.
+* Optional emoji, embed, and Heartbeat optimizations.
+* No telemetry, advertisements, or VyomPress account.
 
 Source code, development documentation, and issue tracking are available at https://github.com/vyompress/boost.
 
 == Installation ==
 
-1. Upload the `vyompress-boost` directory to `/wp-content/plugins/`, or install the plugin through WordPress.
-2. Activate VyomPress Boost.
-3. Open Settings > VyomPress Boost.
-4. Review the defaults and purge any upstream CDN after changing cache settings.
+1. Install and activate VyomPress Boost.
+2. Open Settings > VyomPress Boost.
+3. Page caching is enabled with conservative defaults.
+4. Optionally connect Cloudflare or S3-compatible media storage from their dedicated tabs.
+5. Save the connection settings, then use the provided connection test.
 
 == Frequently Asked Questions ==
 
 = Does the plugin send data to VyomPress? =
 
-No. Version 0.1.0 makes no external requests and collects no telemetry.
+No. VyomPress Boost contains no telemetry and makes no requests to VyomPress.
 
-= Does it cache logged-in or ecommerce sessions? =
+= Are cloud services required? =
 
-No. Requests with WordPress login, password, commenter, WooCommerce, Easy Digital Downloads, or PHP session cookies bypass the page cache.
+No. Page caching and WordPress optimizations work locally. Cloudflare and media offloading are optional and disabled by default.
 
-= Where are cached pages stored? =
+= Can credentials be kept out of the WordPress database? =
 
-Cached HTML is stored under `wp-content/cache/vyompress-boost` in an opaque, sharded file structure protected from direct web access.
+Yes. Define `VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN`, `VYOMPRESS_BOOST_S3_ACCESS_KEY`, and `VYOMPRESS_BOOST_S3_SECRET_KEY` in `wp-config.php`. Constants override saved values.
 
-= How can another plugin bypass the cache? =
+= Does media offloading remove local files? =
 
-Define the standard `DONOTCACHEPAGE` constant as true, send a private or no-store Cache-Control response, set a cookie, or use the `vyompress_boost_is_cacheable_request` filter.
+Not by default. Keeping local copies supports image editing, thumbnail regeneration, backups, and recovery from provider outages. Local removal is an advanced opt-in choice.
+
+= Does version 0.2 offload existing Media Library files? =
+
+No. It offloads new uploads and newly regenerated attachment metadata. A resumable bulk migration tool is planned separately so large libraries are not processed in one web request.
+
+= How can a private MinIO endpoint be used? =
+
+Private network destinations are blocked by default to prevent unsafe requests. A site owner can explicitly allow a trusted internal endpoint with the `vyompress_boost_allow_private_s3_endpoint` filter. HTTPS is required outside a local WordPress environment.
+
+= How can another plugin bypass the page cache? =
+
+Define the standard `DONOTCACHEPAGE` constant as true, send a private or no-store Cache-Control response, set a session cookie, or use the `vyompress_boost_is_cacheable_request` filter.
+
+== External services ==
+
+VyomPress Boost does not contact an external service until an administrator enables and configures the related integration.
+
+= Cloudflare =
+
+When enabled, the plugin sends the configured zone ID and an authenticated cache-purge request to Cloudflare after relevant WordPress changes or an explicit administrator action. Cloudflare processes the request under its terms and privacy policy.
+
+* Service: https://www.cloudflare.com/
+* Terms: https://www.cloudflare.com/website-terms/
+* Privacy policy: https://www.cloudflare.com/privacypolicy/
+
+= Administrator-selected S3-compatible storage =
+
+When enabled, the plugin sends WordPress media files, filenames, MIME types, cache metadata, and authenticated object requests directly from the WordPress server to the endpoint configured by the administrator. VyomPress does not receive those files or credentials. The selected provider's own terms and privacy policy apply.
+
+Common compatible providers:
+
+* AWS S3 — https://aws.amazon.com/s3/ — Terms: https://aws.amazon.com/service-terms/ — Privacy: https://aws.amazon.com/privacy/
+* Cloudflare R2 — https://www.cloudflare.com/developer-platform/products/r2/ — Terms: https://www.cloudflare.com/website-terms/ — Privacy: https://www.cloudflare.com/privacypolicy/
+* DigitalOcean Spaces — https://www.digitalocean.com/products/spaces — Terms: https://www.digitalocean.com/legal/terms-of-service-agreement — Privacy: https://www.digitalocean.com/legal/privacy-policy
+* Wasabi — https://wasabi.com/cloud-object-storage — Terms: https://wasabi.com/legal/terms-of-use — Privacy: https://wasabi.com/legal/privacy-policy
+* Backblaze B2 — https://www.backblaze.com/cloud-storage — Terms: https://www.backblaze.com/company/terms.html — Privacy: https://www.backblaze.com/company/privacy.html
+
+For another compatible service or a self-hosted MinIO deployment, review the endpoint operator's own terms and privacy policy before connecting it.
 
 == Changelog ==
 
+= 0.2.0 =
+
+* Added Cloudflare automatic and manual cache purging with scoped API tokens.
+* Added provider-neutral S3 media offloading, URL rewriting, remote deletion, connection testing, and safe local-copy defaults.
+* Added query normalization, configurable exclusions, mobile variants, and independent browser-cache lifetime.
+* Rebuilt the settings interface around guided tabs, status cards, safer credential handling, and Site Health diagnostics.
+* Added privacy disclosures and external-service documentation for WordPress.org review.
+
 = 0.1.0 =
 
-* Initial public release.
-* Added anonymous page caching and automatic invalidation.
-* Added browser cache headers and safe WordPress asset optimizations.
-* Added settings, manual purge, and Site Health integration.
+* Initial public release with anonymous page caching and focused WordPress optimizations.
 
 == Upgrade Notice ==
 
-= 0.1.0 =
+= 0.2.0 =
 
-Initial release.
+Adds optional Cloudflare and S3-compatible integrations. Both remain disabled until explicitly configured.

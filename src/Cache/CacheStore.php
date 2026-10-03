@@ -55,6 +55,7 @@ final class CacheStore {
 			}
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- Runtime cache writes require direct, non-interactive filesystem access.
 		return is_writable( $this->directory );
 	}
 
@@ -110,6 +111,7 @@ final class CacheStore {
 			return false;
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Same-filesystem rename provides the atomic cache write guarantee.
 		if ( ! rename( $temporary, $path ) ) {
 			$this->deleteFile( $temporary );
 
@@ -137,6 +139,7 @@ final class CacheStore {
 			$path = $item->getPathname();
 
 			if ( $item->isDir() ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removes only empty plugin-owned cache shards.
 				rmdir( $path );
 				continue;
 			}
@@ -202,6 +205,12 @@ final class CacheStore {
 	 * @param string $path Absolute cache-owned path.
 	 */
 	private function deleteFile( string $path ): bool {
-		return ! is_file( $path ) || unlink( $path );
+		if ( ! is_file( $path ) ) {
+			return true;
+		}
+
+		wp_delete_file( $path );
+
+		return ! is_file( $path );
 	}
 }

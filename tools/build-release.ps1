@@ -5,7 +5,15 @@ param(
 $ErrorActionPreference = "Stop"
 $pluginRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
-$outputPath = Join-Path $resolvedOutputDirectory "vyompress-boost-0.1.0.zip"
+$pluginHeader = Get-Content -Raw -LiteralPath (Join-Path $pluginRoot "vyompress-boost.php")
+$versionMatch = [regex]::Match($pluginHeader, '(?m)^ \* Version:\s+([0-9]+\.[0-9]+\.[0-9]+)\s*$')
+
+if (-not $versionMatch.Success) {
+    throw "Unable to read the plugin version from vyompress-boost.php."
+}
+
+$version = $versionMatch.Groups[1].Value
+$outputPath = Join-Path $resolvedOutputDirectory "vyompress-boost-$version.zip"
 $archiveRoot = "vyompress-boost"
 
 New-Item -ItemType Directory -Force -Path $resolvedOutputDirectory | Out-Null
@@ -23,9 +31,9 @@ $files = @(
 )
 
 $files += Get-ChildItem -Path (Join-Path $pluginRoot "src") -File -Recurse |
-    ForEach-Object { [System.IO.Path]::GetRelativePath($pluginRoot, $_.FullName) }
+    ForEach-Object { $_.FullName.Substring($pluginRoot.Length).TrimStart('\', '/') }
 $files += Get-ChildItem -Path (Join-Path $pluginRoot "assets") -File -Recurse |
-    ForEach-Object { [System.IO.Path]::GetRelativePath($pluginRoot, $_.FullName) }
+    ForEach-Object { $_.FullName.Substring($pluginRoot.Length).TrimStart('\', '/') }
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

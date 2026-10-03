@@ -1,6 +1,6 @@
 {
   "name": "vyompress/vyompress-boost",
-  "description": "Safe page caching and performance optimizations for WordPress.",
+  "description": "Page caching, Cloudflare automation, and S3-compatible media offloading for WordPress.",
   "homepage": "https://github.com/vyompress/boost",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",

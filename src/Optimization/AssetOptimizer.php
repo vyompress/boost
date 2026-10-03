@@ -85,7 +85,7 @@ final class AssetOptimizer {
 				static function ( string|array $url ): bool {
 					$value = is_array( $url ) ? ( $url['href'] ?? '' ) : $url;
 
-					return ! str_contains( (string) $value, 's.w.org/images/core/emoji/' );
+					return ! str_contains( (string) $value, '/images/core/emoji/' );
 				}
 			)
 		);

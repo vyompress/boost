@@ -44,6 +44,13 @@ final class PageCache {
 	private ?string $active_key = null;
 
 	/**
+	 * Normalized URI selected by the eligibility policy.
+	 *
+	 * @var string|null
+	 */
+	private ?string $normalized_uri = null;
+
+	/**
 	 * Create the page-cache service.
 	 *
 	 * @param Settings         $settings Plugin settings.
@@ -166,7 +173,14 @@ final class PageCache {
 	 * Clear every cache entry.
 	 */
 	public function purge(): void {
-		$this->store->clear();
+		$removed = $this->store->clear();
+
+		/**
+		 * Fires after the local page cache is purged.
+		 *
+		 * @param int $removed Number of local cache entries removed.
+		 */
+		do_action( 'vyompress_boost_cache_purged', $removed );
 	}
 
 	/**
@@ -186,7 +200,11 @@ final class PageCache {
 		}
 
 		$request_uri = $this->requestUri();
-		if ( $this->policy->hasQueryString( $request_uri ) || $this->policy->hasBypassCookie( $_COOKIE ) ) {
+		$ignored     = $this->lines( (string) $this->settings->get( 'ignored_query_parameters' ) );
+		$excluded    = $this->lines( (string) $this->settings->get( 'excluded_paths' ) );
+
+		$this->normalized_uri = $this->policy->normalizedUri( $request_uri, (bool) $this->settings->get( 'cache_query_strings' ), $ignored );
+		if ( null === $this->normalized_uri || $this->policy->isExcludedPath( $request_uri, $excluded ) || $this->policy->hasBypassCookie( $_COOKIE ) ) {
 			return false;
 		}
 
@@ -220,9 +238,9 @@ final class PageCache {
 	private function requestKey(): string {
 		$scheme  = is_ssl() ? 'https' : 'http';
 		$host    = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : (string) wp_parse_url( home_url(), PHP_URL_HOST );
-		$variant = wp_is_mobile() ? 'mobile' : 'desktop';
+		$variant = $this->settings->get( 'separate_mobile_cache' ) && wp_is_mobile() ? 'mobile' : 'shared';
 
-		return CacheKey::make( $scheme, $host, $this->requestUri(), $variant );
+		return CacheKey::make( $scheme, $host, $this->normalized_uri ?? $this->requestUri(), $variant );
 	}
 
 	/**
@@ -269,8 +287,21 @@ final class PageCache {
 	 */
 	private function sendCacheControlHeader(): void {
 		if ( $this->settings->get( 'browser_cache' ) ) {
-			$ttl = (int) $this->settings->get( 'cache_ttl' );
+			$ttl = (int) $this->settings->get( 'browser_ttl' );
 			header( 'Cache-Control: public, max-age=' . $ttl . ', stale-while-revalidate=30' );
 		}
+	}
+
+	/**
+	 * Convert a newline-delimited setting to a compact list.
+	 *
+	 * @param string $value Newline-delimited setting.
+	 * @return list<string>
+	 */
+	private function lines( string $value ): array {
+		$lines = preg_split( '/\R/', $value );
+		$lines = false === $lines ? array() : $lines;
+
+		return array_values( array_filter( array_map( 'trim', $lines ) ) );
 	}
 }

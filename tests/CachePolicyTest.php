@@ -41,6 +41,23 @@ final class CachePolicyTest extends TestCase {
 		self::assertFalse($this->policy->hasQueryString('/articles/'));
 	}
 
+	public function testNormalizesTrackingParameters(): void {
+		self::assertSame(
+			'/articles/',
+			$this->policy->normalizedUri('/articles/?utm_source=newsletter&fbclid=abc', false, array('utm_source', 'fbclid'))
+		);
+	}
+
+	public function testMeaningfulQueryParametersRequireOptInAndAreSorted(): void {
+		self::assertNull($this->policy->normalizedUri('/shop/?size=large&color=blue', false, array()));
+		self::assertSame('/shop/?color=blue&size=large', $this->policy->normalizedUri('/shop/?size=large&color=blue', true, array()));
+	}
+
+	public function testMatchesConfiguredPathPrefixes(): void {
+		self::assertTrue($this->policy->isExcludedPath('/checkout/order-pay/12/', array('/cart/', '/checkout/')));
+		self::assertFalse($this->policy->isExcludedPath('/shop/checkout-guide/', array('/checkout/')));
+	}
+
 	public function testDetectsPrivateSessionCookies(): void {
 		self::assertTrue($this->policy->hasBypassCookie(array('wordpress_logged_in_hash' => 'token')));
 		self::assertTrue($this->policy->hasBypassCookie(array('wp_woocommerce_session_hash' => 'token')));

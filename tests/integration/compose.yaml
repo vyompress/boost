@@ -69,5 +69,45 @@ services:
       - ../../:/var/www/html/wp-content/plugins/vyompress-boost:ro
       - ./smoke.php:/tests/smoke.php:ro
 
+  plugin-check:
+    image: wordpress:cli-php8.3
+    profiles: ["plugin-check"]
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: database:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress-test-password
+      WORDPRESS_DB_NAME: wordpress
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until [ -f /var/www/html/wp-config.php ]; do sleep 1; done
+        if ! wp core is-installed --path=/var/www/html; then
+          wp core install \
+            --path=/var/www/html \
+            --url=http://localhost:18080 \
+            --title="VyomPress Boost Test" \
+            --admin_user=vyompress-test \
+            --admin_password=vyompress-test-password \
+            --admin_email=test@vyompress.local \
+            --skip-email
+        fi
+        wp plugin install plugin-check --activate --path=/var/www/html
+        rm -rf /tmp/vyompress-boost /var/www/html/wp-content/plugins/vyompress-boost /var/www/html/wp-content/plugins/vyompress-boost-release
+        unzip -q /release/vyompress-boost-*.zip -d /tmp
+        cp -R /tmp/vyompress-boost /var/www/html/wp-content/plugins/vyompress-boost
+        wp plugin activate vyompress-boost --path=/var/www/html
+        wp plugin check vyompress-boost \
+          --path=/var/www/html \
+          --require=/var/www/html/wp-content/plugins/plugin-check/cli.php \
+          --format=table
+    volumes:
+      - wordpress-data:/var/www/html
+      - ../../dist:/release:ro
+
 volumes:
   wordpress-data:

@@ -41,10 +41,29 @@ jobs:
       - name: Run unit tests
         run: composer test
 
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build production package
+        shell: pwsh
+        run: ./tools/build-release.ps1
+
+      - name: Extract production package
+        run: unzip -q ./dist/vyompress-boost-*.zip -d ./dist/plugin-check
+
+      - name: Run official directory-readiness checks
+        uses: WordPress/plugin-check-action@005058d6dbd2942b6a58610836b981c2ee3cc19d
+        with:
+          build-dir: ./dist/plugin-check/vyompress-boost
+
   package:
     name: Package release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: test
+    needs: [test, plugin-check]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -60,4 +79,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME ./dist/vyompress-boost-0.1.0.zip --verify-tag --generate-notes --title "VyomPress Boost $env:GITHUB_REF_NAME"
+        run: gh release create $env:GITHUB_REF_NAME ./dist/vyompress-boost-*.zip --verify-tag --generate-notes --title "VyomPress Boost $env:GITHUB_REF_NAME"

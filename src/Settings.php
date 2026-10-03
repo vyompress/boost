@@ -72,6 +72,10 @@ final class Settings {
 			's3_prefix'                   => 'wp-content/uploads',
 			's3_keep_local'               => true,
 			's3_cache_control'            => 'public, max-age=31536000, immutable',
+			's3_private_media'            => false,
+			's3_signed_url_ttl'           => 86400,
+			'modern_image_format'         => 'off',
+			'modern_image_quality'        => 82,
 		);
 	}
 
@@ -159,6 +163,7 @@ final class Settings {
 			's3_enabled',
 			's3_path_style',
 			's3_keep_local',
+			's3_private_media',
 		);
 
 		foreach ( $boolean_keys as $key ) {
@@ -195,6 +200,14 @@ final class Settings {
 			$current['database_retention_days'] = self::boundedInteger( $input['database_retention_days'], 7, 365, 30 );
 		}
 
+		if ( isset( $input['s3_signed_url_ttl'] ) ) {
+			$current['s3_signed_url_ttl'] = self::boundedInteger( $input['s3_signed_url_ttl'], 900, WEEK_IN_SECONDS, 86400 );
+		}
+
+		if ( isset( $input['modern_image_quality'] ) ) {
+			$current['modern_image_quality'] = self::boundedInteger( $input['modern_image_quality'], 40, 100, 82 );
+		}
+
 		if ( array_key_exists( 'ignored_query_parameters', $input ) ) {
 			$current['ignored_query_parameters'] = self::sanitizeLines( $input['ignored_query_parameters'], '/^[A-Za-z0-9_.~-]+$/' );
 		}
@@ -221,6 +234,11 @@ final class Settings {
 		if ( isset( $input['speculation_eagerness'] ) ) {
 			$eagerness                        = sanitize_key( wp_unslash( (string) $input['speculation_eagerness'] ) );
 			$current['speculation_eagerness'] = in_array( $eagerness, array( 'auto', 'conservative', 'moderate', 'eager' ), true ) ? $eagerness : 'auto';
+		}
+
+		if ( isset( $input['modern_image_format'] ) ) {
+			$format                         = sanitize_key( wp_unslash( (string) $input['modern_image_format'] ) );
+			$current['modern_image_format'] = in_array( $format, array( 'off', 'webp', 'avif' ), true ) ? $format : 'off';
 		}
 
 		$text_fields = array(

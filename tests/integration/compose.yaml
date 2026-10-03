@@ -63,6 +63,7 @@ services:
           --admin_email=test@vyompress.local \
           --skip-email
         wp plugin activate vyompress-boost --path=/var/www/html
+        wp vyompress-boost status --path=/var/www/html
         wp eval-file /tests/smoke.php --path=/var/www/html
     volumes:
       - wordpress-data:/var/www/html

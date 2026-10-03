@@ -159,6 +159,19 @@ final class S3Client {
 	 * @param string $object_key Uploaded object key.
 	 */
 	public function publicUrl( string $object_key ): string {
+		if ( $this->settings->get( 's3_private_media' ) && $this->isConfigured() ) {
+			$expires = max( (int) $this->settings->get( 's3_signed_url_ttl' ), (int) $this->settings->get( 'cache_ttl' ) + 60 );
+
+			return $this->signer->presign(
+				'GET',
+				$this->objectUrl( $object_key ),
+				$this->settings->credential( 's3_access_key', 'VYOMPRESS_BOOST_S3_ACCESS_KEY' ),
+				$this->settings->credential( 's3_secret_key', 'VYOMPRESS_BOOST_S3_SECRET_KEY' ),
+				(string) $this->settings->get( 's3_region' ),
+				$expires
+			);
+		}
+
 		$public_base = (string) $this->settings->get( 's3_public_url' );
 		if ( '' !== $public_base ) {
 			return untrailingslashit( $public_base ) . '/' . $this->encodeKey( $object_key );

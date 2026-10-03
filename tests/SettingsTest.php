@@ -84,4 +84,18 @@ final class SettingsTest extends TestCase {
 		self::assertSame('moderate', $result['speculation_eagerness']);
 		self::assertSame('https://fonts.example.com', $result['preconnect_origins']);
 	}
+
+	public function testProfessionalMediaSettingsAreBounded(): void {
+		$result = Settings::sanitize(
+			array(
+				's3_signed_url_ttl'    => 30,
+				'modern_image_format'  => 'jpeg-xl',
+				'modern_image_quality' => 120,
+			)
+		);
+
+		self::assertSame(900, $result['s3_signed_url_ttl']);
+		self::assertSame('off', $result['modern_image_format']);
+		self::assertSame(100, $result['modern_image_quality']);
+	}
 }

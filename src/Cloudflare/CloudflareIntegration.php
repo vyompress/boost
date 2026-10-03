@@ -89,11 +89,15 @@ final class CloudflareIntegration {
 	public function syncEdgeRule(): bool|WP_Error {
 		$excluded = preg_split( '/\R/', (string) $this->settings->get( 'excluded_paths' ) );
 		$excluded = false === $excluded ? array() : array_values( array_filter( array_map( 'trim', $excluded ) ) );
-		$result   = $this->client->syncEdgeRule(
+		$edge_ttl = (int) $this->settings->get( 'cloudflare_edge_ttl' );
+		if ( $this->settings->get( 's3_private_media' ) ) {
+			$edge_ttl = min( $edge_ttl, max( 7200, (int) $this->settings->get( 's3_signed_url_ttl' ) - 300 ) );
+		}
+		$result = $this->client->syncEdgeRule(
 			(string) $this->settings->get( 'cloudflare_zone_id' ),
 			$this->settings->credential( 'cloudflare_api_token', 'VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN' ),
 			(string) wp_parse_url( home_url(), PHP_URL_HOST ),
-			(int) $this->settings->get( 'cloudflare_edge_ttl' ),
+			$edge_ttl,
 			$excluded,
 			(bool) $this->settings->get( 'cache_query_strings' ),
 			(bool) $this->settings->get( 'separate_mobile_cache' )

@@ -43,4 +43,21 @@ final class S3SignerTest extends TestCase {
 
 		self::assertNotSame($first['Authorization'], $second['Authorization']);
 	}
+
+	public function testProducesDeterministicExpiringGetUrl(): void {
+		$url = (new S3Signer())->presign(
+			'GET',
+			'https://media.example.com/site/private%20image.jpg',
+			'ACCESSKEY',
+			'secret-key',
+			'us-east-1',
+			900,
+			new DateTimeImmutable('2026-10-03 10:20:30', new DateTimeZone('UTC'))
+		);
+
+		self::assertStringStartsWith('https://media.example.com/site/private%20image.jpg?', $url);
+		self::assertStringContainsString('X-Amz-Credential=ACCESSKEY%2F20261003%2Fus-east-1%2Fs3%2Faws4_request', $url);
+		self::assertStringContainsString('X-Amz-Expires=900', $url);
+		self::assertMatchesRegularExpression('/X-Amz-Signature=[a-f0-9]{64}$/', $url);
+	}
 }

@@ -9,12 +9,14 @@ declare(strict_types=1);
 
 namespace VyomPress\Boost;
 
+use VyomPress\Boost\Admin\ContentControls;
 use VyomPress\Boost\Admin\SettingsPage;
 use VyomPress\Boost\Cache\CachePreloader;
 use VyomPress\Boost\Cache\CacheStore;
 use VyomPress\Boost\Cache\PageCache;
 use VyomPress\Boost\Cloudflare\CloudflareClient;
 use VyomPress\Boost\Cloudflare\CloudflareIntegration;
+use VyomPress\Boost\Cli\BoostCommand;
 use VyomPress\Boost\Media\MediaOffloader;
 use VyomPress\Boost\Media\MediaMigrator;
 use VyomPress\Boost\Media\S3Client;
@@ -22,6 +24,7 @@ use VyomPress\Boost\Media\S3Signer;
 use VyomPress\Boost\Optimization\AssetOptimizer;
 use VyomPress\Boost\Optimization\DatabaseOptimizer;
 use VyomPress\Boost\Optimization\FrontendOptimizer;
+use VyomPress\Boost\Optimization\ImageOptimizer;
 use VyomPress\Boost\Operations\ActivityLog;
 
 /**
@@ -70,10 +73,13 @@ final class Plugin {
 		$preloader  = new CachePreloader( $settings, $log );
 		$migrator   = new MediaMigrator( $settings, $offloader, $s3_client, $log );
 		$database   = new DatabaseOptimizer( $settings, $log );
+		$images     = new ImageOptimizer( $settings );
 
 		( new PageCache( $settings, $store ) )->register();
 		( new AssetOptimizer( $settings ) )->register();
 		( new FrontendOptimizer( $settings ) )->register();
+		$images->register();
+		( new ContentControls() )->register();
 		$cloudflare->register();
 		$offloader->register();
 		$preloader->register();
@@ -81,7 +87,11 @@ final class Plugin {
 		$database->register();
 
 		if ( is_admin() ) {
-			( new SettingsPage( $settings, $store, $cloudflare, $s3_client, $preloader, $migrator, $database, $log ) )->register();
+			( new SettingsPage( $settings, $store, $cloudflare, $s3_client, $preloader, $migrator, $database, $images, $log ) )->register();
+		}
+
+		if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( '\\WP_CLI' ) ) {
+			\WP_CLI::add_command( 'vyompress-boost', new BoostCommand( $settings, $store, $cloudflare, $preloader, $migrator, $database ) );
 		}
 	}
 

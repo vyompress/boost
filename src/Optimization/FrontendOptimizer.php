@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace VyomPress\Boost\Optimization;
 
+use VyomPress\Boost\Admin\ContentControls;
 use VyomPress\Boost\Settings;
 use WP_HTML_Tag_Processor;
 
@@ -69,7 +70,7 @@ final class FrontendOptimizer {
 	 * @param string $src    Script source URL.
 	 */
 	public function filterScriptTag( string $tag, string $handle, string $src ): string {
-		if ( is_admin() || '' === $src || $this->matchesAny( $handle . ' ' . $src, (string) $this->settings->get( 'defer_javascript_exclusions' ) ) ) {
+		if ( is_admin() || ContentControls::optimizationsDisabled() || '' === $src || $this->matchesAny( $handle . ' ' . $src, (string) $this->settings->get( 'defer_javascript_exclusions' ) ) ) {
 			return $tag;
 		}
 
@@ -112,7 +113,7 @@ final class FrontendOptimizer {
 	 * @return array<string,string>
 	 */
 	public function prioritizeFirstImage( array $attributes ): array {
-		if ( $this->priority_image_selected || is_admin() || is_feed() ) {
+		if ( $this->priority_image_selected || is_admin() || is_feed() || ContentControls::optimizationsDisabled() ) {
 			return $attributes;
 		}
 
@@ -133,6 +134,9 @@ final class FrontendOptimizer {
 	 */
 	public function filterLazyLoading( bool $enabled, string $tag_name, string $context ): bool {
 		unset( $context );
+		if ( ContentControls::optimizationsDisabled() ) {
+			return $enabled;
+		}
 
 		if ( 'img' === $tag_name ) {
 			return (bool) $this->settings->get( 'lazy_load_images' );
@@ -152,7 +156,7 @@ final class FrontendOptimizer {
 	 * @return array<string,string>|null
 	 */
 	public function filterSpeculationConfiguration( ?array $configuration ): ?array {
-		if ( null === $configuration ) {
+		if ( null === $configuration || ContentControls::optimizationsDisabled() ) {
 			return null;
 		}
 
@@ -190,7 +194,7 @@ final class FrontendOptimizer {
 	 * @return array<int,string|array<string,string>>
 	 */
 	public function filterResourceHints( array $urls, string $relation_type ): array {
-		if ( 'preconnect' !== $relation_type ) {
+		if ( 'preconnect' !== $relation_type || ContentControls::optimizationsDisabled() ) {
 			return $urls;
 		}
 

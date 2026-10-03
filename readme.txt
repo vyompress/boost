@@ -3,7 +3,7 @@ Contributors: vyompress
 Tags: cache, performance, cloudflare, s3, media
 Requires at least: 6.4
 Tested up to: 7.1
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -42,6 +42,8 @@ VyomPress Boost combines practical WordPress performance tools in one focused pl
 * Deletes registered remote objects when their attachment is permanently deleted.
 * Resumable background jobs to offload existing media, verify remote objects, and restore missing local copies.
 * Access credentials can be supplied through `wp-config.php`.
+* Optional private media delivery through expiring S3 Signature Version 4 URLs.
+* Local WebP or AVIF image sub-size generation through the WordPress image editor.
 
 = Simple operations =
 
@@ -56,6 +58,9 @@ VyomPress Boost combines practical WordPress performance tools in one focused pl
 * Optional guest Dashicons and jQuery Migrate removal.
 * Guarded manual or weekly cleanup for expired transients, old revisions, trash, and spam.
 * No telemetry, advertisements, or VyomPress account.
+* Per-page cache and optimization controls in the block and classic editors.
+* WP-CLI commands for status, purge, preload, media jobs, and database maintenance.
+* Site Health diagnostics for modern image support and persistent object caching.
 
 Source code, development documentation, and issue tracking are available at https://github.com/vyompress/boost.
 
@@ -97,6 +102,14 @@ Private network destinations are blocked by default to prevent unsafe requests. 
 
 Define the standard `DONOTCACHEPAGE` constant as true, send a private or no-store Cache-Control response, set a session cookie, or use the `vyompress_boost_is_cacheable_request` filter.
 
+= Can private bucket objects be served? =
+
+Yes. Enable private signed media URLs to generate expiring Signature Version 4 links directly to the configured S3-compatible endpoint. Keep the signed URL lifetime longer than any external HTML cache not managed by VyomPress Boost.
+
+= Does modern image generation use an external service? =
+
+No. WebP and AVIF sub-sizes use the active WordPress image editor and the codecs installed on the server. Site Health reports whether the selected format is supported.
+
 == External services ==
 
 VyomPress Boost does not contact an external service until an administrator enables and configures the related integration.
@@ -124,6 +137,14 @@ Common compatible providers:
 For another compatible service or a self-hosted MinIO deployment, review the endpoint operator's own terms and privacy policy before connecting it.
 
 == Changelog ==
+
+= 0.5.0 =
+
+* Added expiring provider-neutral S3 Signature Version 4 URLs for private media.
+* Added local WebP and AVIF sub-size generation plus resumable existing-image regeneration.
+* Added per-page cache and front-end optimization controls.
+* Added WP-CLI commands for operational status, cache, preloading, media, and database jobs.
+* Added Site Health checks for modern image codec and persistent object-cache availability.
 
 = 0.4.0 =
 
@@ -153,6 +174,10 @@ For another compatible service or a self-hosted MinIO deployment, review the end
 * Initial public release with anonymous page caching and focused WordPress optimizations.
 
 == Upgrade Notice ==
+
+= 0.5.0 =
+
+Adds private media, local modern image generation, per-page controls, CLI automation, and professional diagnostics. New delivery features remain opt-in.
 
 = 0.4.0 =
 

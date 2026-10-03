@@ -52,7 +52,7 @@ final class MediaMigrator {
 	 * @param string $mode Offload, verify, or restore.
 	 */
 	public function start( string $mode ): bool {
-		if ( ! in_array( $mode, array( 'offload', 'verify', 'restore' ), true ) || ! $this->offloader->isReady() ) {
+		if ( ! in_array( $mode, array( 'offload', 'verify', 'restore', 'regenerate' ), true ) || ( 'regenerate' !== $mode && ! $this->offloader->isReady() ) ) {
 			return false;
 		}
 
@@ -93,7 +93,7 @@ final class MediaMigrator {
 	 */
 	public function resume(): bool {
 		$status = $this->status();
-		if ( 'paused' !== $status['state'] || ! in_array( $status['mode'], array( 'offload', 'verify', 'restore' ), true ) ) {
+		if ( 'paused' !== $status['state'] || ! in_array( $status['mode'], array( 'offload', 'verify', 'restore', 'regenerate' ), true ) ) {
 			return false;
 		}
 
@@ -192,6 +192,25 @@ final class MediaMigrator {
 	private function processAttachment( int $attachment_id, string $mode ): bool|WP_Error {
 		if ( 'offload' === $mode ) {
 			return $this->offloader->offloadExisting( $attachment_id );
+		}
+
+		if ( 'regenerate' === $mode ) {
+			$file = (string) get_attached_file( $attachment_id, true );
+			if ( '' === $file || ! is_readable( $file ) ) {
+				return new WP_Error( 'vyompress_regenerate_missing_file', __( 'The local original is unavailable for image regeneration.', 'vyompress-boost' ) );
+			}
+
+			if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/image.php';
+			}
+			$metadata = wp_generate_attachment_metadata( $attachment_id, $file );
+			if ( ! is_array( $metadata ) || array() === $metadata ) {
+				return new WP_Error( 'vyompress_regenerate_failed', __( 'WordPress could not regenerate this attachment.', 'vyompress-boost' ) );
+			}
+
+			wp_update_attachment_metadata( $attachment_id, $metadata );
+
+			return true;
 		}
 
 		$record  = $this->offloader->record( $attachment_id );

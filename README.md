@@ -12,6 +12,8 @@ VyomPress Boost is a production-focused WordPress performance plugin with conser
 - Resumable jobs for existing-media offload, remote verification, and local restoration.
 - Browser-native lazy loading, LCP image priority, speculative navigation, resource hints, and guarded JavaScript delivery controls.
 - Bounded database maintenance with retention controls and optional weekly scheduling.
+- Expiring S3 Signature Version 4 private media URLs and local WebP/AVIF sub-size generation.
+- Per-page cache/optimization controls, WP-CLI automation, and professional Site Health diagnostics.
 - Credentials may be kept in `wp-config.php`; secret values are never returned to the settings-page browser.
 - Responsive, accessible administration UI with connection tests and Site Health checks.
 - No telemetry, advertising, remote code, or VyomPress account.
@@ -39,6 +41,19 @@ The following optional `wp-config.php` constants override saved credentials:
 define( 'VYOMPRESS_BOOST_CLOUDFLARE_API_TOKEN', '...' );
 define( 'VYOMPRESS_BOOST_S3_ACCESS_KEY', '...' );
 define( 'VYOMPRESS_BOOST_S3_SECRET_KEY', '...' );
+```
+
+## WP-CLI
+
+```bash
+wp vyompress-boost status
+wp vyompress-boost cache purge
+wp vyompress-boost cache preload
+wp vyompress-boost media offload
+wp vyompress-boost media verify
+wp vyompress-boost media restore
+wp vyompress-boost media regenerate
+wp vyompress-boost database
 ```
 
 ## Security and privacy

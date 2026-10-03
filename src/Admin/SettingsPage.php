@@ -15,6 +15,7 @@ use VyomPress\Boost\Cloudflare\CloudflareIntegration;
 use VyomPress\Boost\Media\MediaMigrator;
 use VyomPress\Boost\Media\S3Client;
 use VyomPress\Boost\Optimization\DatabaseOptimizer;
+use VyomPress\Boost\Optimization\ImageOptimizer;
 use VyomPress\Boost\Operations\ActivityLog;
 use VyomPress\Boost\Settings;
 
@@ -35,6 +36,7 @@ final class SettingsPage {
 	 * @param CachePreloader        $preloader  Cache preloader.
 	 * @param MediaMigrator         $migrator   Existing-media migration worker.
 	 * @param DatabaseOptimizer     $database   Guarded database maintenance.
+	 * @param ImageOptimizer        $images     Modern image generation.
 	 * @param ActivityLog           $log        Local activity log.
 	 */
 	public function __construct(
@@ -45,6 +47,7 @@ final class SettingsPage {
 		private CachePreloader $preloader,
 		private MediaMigrator $migrator,
 		private DatabaseOptimizer $database,
+		private ImageOptimizer $images,
 		private ActivityLog $log
 	) {
 	}
@@ -320,6 +323,24 @@ final class SettingsPage {
 		<?php $this->checkbox( 's3_path_style', __( 'Path-style endpoint', 'vyompress-boost' ), __( 'Recommended for R2, MinIO, and most compatible providers. AWS users can turn this off.', 'vyompress-boost' ) ); ?>
 		<?php $this->checkbox( 's3_keep_local', __( 'Keep local copies', 'vyompress-boost' ), __( 'Recommended. Keeps Media Library editing and provider outages recoverable.', 'vyompress-boost' ) ); ?>
 		<?php $this->text( 's3_cache_control', __( 'Remote cache policy', 'vyompress-boost' ), __( 'Cache-Control metadata attached to uploaded objects.', 'vyompress-boost' ), 'public, max-age=31536000, immutable' ); ?>
+		<?php $this->checkbox( 's3_private_media', __( 'Private signed media URLs', 'vyompress-boost' ), __( 'Generates temporary S3 Signature V4 URLs. Custom public/CDN URLs are ignored while enabled.', 'vyompress-boost' ) ); ?>
+		<?php $this->number( 's3_signed_url_ttl', __( 'Signed URL lifetime', 'vyompress-boost' ), 900, WEEK_IN_SECONDS, 900, __( 'seconds', 'vyompress-boost' ), __( 'Automatically kept longer than the page-cache lifetime to avoid expired URLs in cached HTML.', 'vyompress-boost' ) ); ?>
+		<?php $this->panelEnd(); ?>
+
+		<?php $this->panelStart( __( 'Modern image formats', 'vyompress-boost' ), __( 'Uses the local WordPress image editor—no external image service or account required.', 'vyompress-boost' ) ); ?>
+		<?php
+		$this->select(
+			'modern_image_format',
+			__( 'Generated image format', 'vyompress-boost' ),
+			array(
+				'off'  => __( 'Keep original formats', 'vyompress-boost' ),
+				'webp' => 'WebP',
+				'avif' => 'AVIF',
+			),
+			__( 'Applies to new image sub-sizes. Use the regeneration job below for existing local media.', 'vyompress-boost' )
+		);
+		?>
+		<?php $this->number( 'modern_image_quality', __( 'Modern image quality', 'vyompress-boost' ), 40, 100, 1, '%', __( '82 balances visual quality and file size for most sites.', 'vyompress-boost' ) ); ?>
 		<?php $this->panelEnd(); ?>
 		<?php
 	}
@@ -566,6 +587,7 @@ elseif ( $has_secret ) :
 		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Offload existing media', 'vyompress-boost' ), __( 'Copies existing Media Library files in small resumable batches.', 'vyompress-boost' ), array( 'operation' => 'offload' ) );
 		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Verify remote media', 'vyompress-boost' ), __( 'Checks every registered remote object without downloading it.', 'vyompress-boost' ), array( 'operation' => 'verify' ) );
 		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Restore local copies', 'vyompress-boost' ), __( 'Downloads missing local files while continuing to serve configured remote URLs.', 'vyompress-boost' ), array( 'operation' => 'restore' ) );
+		$this->actionPanel( 'vyompress_boost_media_job', 'vyompress_boost_media_job', __( 'Regenerate image sizes', 'vyompress-boost' ), __( 'Rebuilds existing local image sub-sizes in small batches using the selected modern format.', 'vyompress-boost' ), array( 'operation' => 'regenerate' ) );
 	}
 
 	/**
@@ -770,6 +792,14 @@ elseif ( $has_secret ) :
 			'label' => __( 'VyomPress Boost media storage setup', 'vyompress-boost' ),
 			'test'  => array( $this, 's3HealthResult' ),
 		);
+		$tests['direct']['vyompress_boost_image_format']  = array(
+			'label' => __( 'VyomPress Boost modern image support', 'vyompress-boost' ),
+			'test'  => array( $this, 'imageFormatHealthResult' ),
+		);
+		$tests['direct']['vyompress_boost_object_cache']  = array(
+			'label' => __( 'Persistent object cache', 'vyompress-boost' ),
+			'test'  => array( $this, 'objectCacheHealthResult' ),
+		);
 
 		return $tests;
 	}
@@ -807,6 +837,38 @@ elseif ( $has_secret ) :
 		$ready   = ! $enabled || $this->s3->isConfigured();
 
 		return $this->healthResult( 'vyompress_boost_s3', $ready, __( 'Media storage configuration is complete', 'vyompress-boost' ), __( 'Media storage configuration is incomplete', 'vyompress-boost' ), $enabled ? __( 'New uploads can be sent to the configured provider.', 'vyompress-boost' ) : __( 'Media offloading is optional and currently disabled.', 'vyompress-boost' ), __( 'Complete the endpoint, bucket, region, and access credentials, or disable offloading.', 'vyompress-boost' ) );
+	}
+
+	/**
+	 * Return modern image editor support status.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function imageFormatHealthResult(): array {
+		$enabled = 'off' !== $this->settings->get( 'modern_image_format' );
+		$ready   = ! $enabled || $this->images->isSupported();
+
+		return $this->healthResult( 'vyompress_boost_image_format', $ready, __( 'The selected modern image format is supported', 'vyompress-boost' ), __( 'The selected modern image format is unavailable', 'vyompress-boost' ), $enabled ? __( 'WordPress can generate the selected image format.', 'vyompress-boost' ) : __( 'Modern image generation is optional and currently disabled.', 'vyompress-boost' ), __( 'Install the required GD or Imagick codec, or select another image format.', 'vyompress-boost' ) );
+	}
+
+	/**
+	 * Recommend a host-provided persistent object cache without installing a drop-in.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function objectCacheHealthResult(): array {
+		$enabled = wp_using_ext_object_cache();
+
+		return array(
+			'label'       => $enabled ? __( 'A persistent object cache is active', 'vyompress-boost' ) : __( 'A persistent object cache can improve dynamic requests', 'vyompress-boost' ),
+			'status'      => $enabled ? 'good' : 'recommended',
+			'badge'       => array(
+				'label' => __( 'Performance', 'vyompress-boost' ),
+				'color' => 'blue',
+			),
+			'description' => '<p>' . esc_html( $enabled ? __( 'WordPress is using a host-provided Redis, Memcached, or compatible object cache.', 'vyompress-boost' ) : __( 'Ask your host whether Redis or Memcached is available. VyomPress Boost will not replace an existing object-cache drop-in.', 'vyompress-boost' ) ) . '</p>',
+			'test'        => 'vyompress_boost_object_cache',
+		);
 	}
 
 	/**

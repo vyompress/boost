@@ -22,6 +22,8 @@ function vyompress_boost_uninstall_site(): void {
 	delete_option( 'vyompress_boost_media_migration_status' );
 	delete_post_meta_by_key( '_vyompress_boost_offload' );
 	delete_post_meta_by_key( '_vyompress_boost_offload_error' );
+	delete_post_meta_by_key( '_vyompress_boost_no_cache' );
+	delete_post_meta_by_key( '_vyompress_boost_no_optimize' );
 	wp_clear_scheduled_hook( 'vyompress_boost_cloudflare_purge' );
 	wp_clear_scheduled_hook( 'vyompress_boost_preload_batch' );
 	wp_clear_scheduled_hook( 'vyompress_boost_media_migration_batch' );
